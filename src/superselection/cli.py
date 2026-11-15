@@ -62,6 +62,64 @@ def c(texte: str, role: str) -> str:
     return peindre(texte, role, _COULEUR)
 
 
+def _questions(app: App, nom: str, demander: Demander) -> None:
+    """Demande le style puis la note perso ; Ctrl+C / Ctrl+D : on garde tout."""
+    actuel = app.mon_style(nom)
+    question = (
+        "  Nouveau style ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
+        if actuel
+        else "  Son style ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
+    )
+    try:
+        reponse = demander(question, "").strip()
+    except (KeyboardInterrupt, EOFError):
+        return
+    if reponse == "-" and actuel:
+        app.noter(nom, "")
+        afficher("  " + c("Style effacé.", "ok"))
+    elif reponse and reponse != "-" and reponse != actuel:
+        app.noter(nom, reponse)
+        afficher("  " + c("Style enregistré.", "ok"))
+    memo = app.mon_memo(nom)
+    question = (
+        "  Nouvelle note ? " + c("(texte privé, Entrée = garder, - = effacer)", "info") + " > "
+        if memo
+        else "  Une note ? " + c("(texte libre privé, Entrée = passer)", "info") + " > "
+    )
+    try:
+        reponse = demander(question, "").strip()
+    except (KeyboardInterrupt, EOFError):
+        return
+    if reponse == "-" and memo:
+        afficher("  " + app.memoriser(nom, ""))
+    elif reponse and reponse != "-" and reponse != memo:
+        afficher("  " + app.memoriser(nom, reponse))
+
+
+def _editer(app: App, nom: str, demander: Demander) -> None:
+    """Fiche puis nom, style et note déjà remplis : Entrée garde, on corrige sur place, vide = effacer."""
+    afficher(app.modifier(nom))
+    if app.carnet.trouver(nom) is None:
+        return
+    try:
+        nouveau = demander("  Nom   > ", nom).strip()
+        if nouveau and nouveau != nom:
+            afficher("  " + app.renommer(nom, nouveau))
+            if (joueur := app.carnet.trouver(nouveau)) is not None and app.carnet.trouver(nom) is None:
+                nom = joueur.nom
+        style = app.mon_style(nom)
+        reponse = demander("  Style > ", style).strip()
+        if reponse != style:
+            app.noter(nom, reponse)
+            afficher("  " + c("Style enregistré." if reponse else "Style effacé.", "ok"))
+        memo = app.mon_memo(nom)
+        reponse = demander("  Note  > ", memo).strip()
+        if reponse != memo:
+            afficher("  " + app.memoriser(nom, reponse))
+    except (KeyboardInterrupt, EOFError):
+        return  # Ctrl+C / Ctrl+D : on garde ce qui est déjà enregistré
+
+
 def executer(app: App, ligne: str, demander: Demander) -> bool:
     """Exécute une ligne. Renvoie False pour quitter."""
     commande, argument = analyser(ligne, app.noms())
@@ -104,8 +162,11 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             except (KeyboardInterrupt, EOFError):
                 reponse = ""
             afficher(app.vider() if reponse == "oui" else c("Annulé.", "info"))
-    elif commande == "rename":
-        afficher(app.renommer(argument))
+    elif commande == "edit":
+        if not argument:
+            afficher(c("Indique un nom.  ex : edit [IMP] Pizza", "info"))
+            return True
+        _editer(app, app.nom_canonique(argument), demander)
     elif commande == "export":
         afficher(app.exporter(argument))
     elif commande == "import":
@@ -142,37 +203,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             afficher(c("Indique un nom.  ex : player list", "info"))
             return True
         afficher(app.croiser(argument))
-        nom = app.nom_canonique(argument)
-        actuel = app.mon_style(nom)
-        question = (
-            "  Nouveau style ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
-            if actuel
-            else "  Son style ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
-        )
-        try:
-            reponse = demander(question, "").strip()
-        except (KeyboardInterrupt, EOFError):
-            return True  # Ctrl+C / Ctrl+D : on garde tout
-        if reponse == "-" and actuel:
-            app.noter(nom, "")
-            afficher("  " + c("Style effacé.", "ok"))
-        elif reponse and reponse != "-" and reponse != actuel:
-            app.noter(nom, reponse)
-            afficher("  " + c("Style enregistré.", "ok"))
-        memo = app.mon_memo(nom)
-        question = (
-            "  Nouvelle note ? " + c("(texte privé, Entrée = garder, - = effacer)", "info") + " > "
-            if memo
-            else "  Une note ? " + c("(texte libre privé, Entrée = passer)", "info") + " > "
-        )
-        try:
-            reponse = demander(question, "").strip()
-        except (KeyboardInterrupt, EOFError):
-            return True
-        if reponse == "-" and memo:
-            afficher("  " + app.memoriser(nom, ""))
-        elif reponse and reponse != "-" and reponse != memo:
-            afficher("  " + app.memoriser(nom, reponse))
+        _questions(app, app.nom_canonique(argument), demander)
     return True
 
 
@@ -284,9 +315,7 @@ def _session(app: App):
             commande = COMMANDES.get(mot.casefold()) if espace else None
             if commande in ("import", "export"):
                 yield from chemins.get_completions(Document(reste), complete_event)
-            elif commande in ("show", "croiser", "delete"):
-                yield from self._noms(reste)
-            elif commande == "rename" and ">" not in reste:
+            elif commande in ("show", "edit", "croiser", "delete"):
                 yield from self._noms(reste)
             elif texte:
                 if not espace:

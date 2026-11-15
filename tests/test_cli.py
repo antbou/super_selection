@@ -201,12 +201,14 @@ def test_delete_ctrl_c_annule(tmp_path):
     assert app.carnet.trouver("Bob") is not None
 
 
-def test_rename_via_executer(tmp_path):
+def test_edit_renomme_puis_note_sans_recompter(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Pizza")
-    cli.executer(app, "rename Pizza > Pizza2", lambda q, d: "")
+    reponses = iter(["Pizza2", "rush", ""])  # nom, style, note
+    cli.executer(app, "edit Pizza", lambda q, d: next(reponses))
     assert app.carnet.trouver("Pizza") is None
     assert app.carnet.trouver("Pizza2").rencontres == 1
+    assert _style(app, "Pizza2") == "rush"
 
 
 @pytest.mark.parametrize("reponse,reste", [("oui", 0), ("o", 2), ("", 2), ("non", 2)])
@@ -296,3 +298,39 @@ def test_top_commande_non_interactive(tmp_path, capsys):
     sortie = capsys.readouterr().out
     assert "Unloukee" in sortie and "600 pts" in sortie
     assert app.carnet.trouver("top") is None  # ne compte pas de rencontre
+
+
+def test_edit_champs_prerempli_entree_garde_tout(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.noter("Bob", "aggressive")
+    app.memoriser("Bob", "joue le soir")
+    app.maintenant = lambda: "2026-11-15T23:00"
+    vus = []
+
+    def entree(question, defaut):
+        vus.append(defaut)
+        return defaut  # Entrée sur un champ pré-rempli
+
+    cli.executer(app, "edit bob", entree)
+    assert vus == ["Bob", "aggressive", "joue le soir"]
+    bob = app.carnet.trouver("Bob")
+    assert bob.rencontres == 1 and bob.derniere == "2026-11-15T20:00"
+    assert _style(app, "Bob") == "aggressive" and bob.memo == "joue le soir"
+
+
+def test_edit_corrige_sur_place_et_vide_efface(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.noter("Bob", "aggressive")
+    app.memoriser("Bob", "joue le soir")
+    reponses = iter(["Bob", "aggressive, noob", ""])  # nom gardé, style corrigé, note vidée
+    cli.executer(app, "edit Bob", lambda q, d: next(reponses))
+    assert _style(app, "Bob") == "aggressive, noob"
+    assert app.carnet.trouver("Bob").memo == ""
+
+
+def test_edit_joueur_inconnu_ne_pose_aucune_question(tmp_path):
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, "edit Zorglub", lambda q, d: pytest.fail("pas de question")) is True
+    assert app.carnet.trouver("Zorglub") is None

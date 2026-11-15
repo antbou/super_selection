@@ -235,7 +235,7 @@ def test_renommer_garde_rencontres_et_styles(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Pizza")
     app.noter("Pizza", "rush")
-    assert "renommé" in app.renommer("pizza > [IMP] Pizza")
+    assert "renommé" in app.renommer("pizza", "[IMP] Pizza")
     assert app.carnet.trouver("Pizza") is None
     joueur = app.carnet.trouver("[IMP] Pizza")
     assert (joueur.nom, joueur.rencontres, joueur.styles["Antho"].texte) == ("[IMP] Pizza", 1, "rush")
@@ -246,23 +246,22 @@ def test_renommer_refuse_les_cas_invalides(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     app.croiser("Alice")
-    assert "existe déjà" in app.renommer("Bob > alice")
-    assert "n'est pas dans ton carnet" in app.renommer("Zed > Zoe")
-    assert "ex : rename" in app.renommer("Bob")
-    assert "ex : rename" in app.renommer("Bob > ")
+    assert "existe déjà" in app.renommer("Bob", "alice")
+    assert "n'est pas dans ton carnet" in app.renommer("Zed", "Zoe")
+    assert "nouveau nom" in app.renommer("Bob", " ")
     assert app.carnet.trouver("Bob") is not None
 
 
 def test_renommer_juste_la_casse(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("bob")
-    assert "renommé" in app.renommer("bob > Bob")
+    assert "renommé" in app.renommer("bob", "Bob")
     assert app.carnet.trouver("bob").nom == "Bob"
 
 
-def test_analyser_delete_rename():
+def test_analyser_delete_edit():
     assert analyser("delete Bob") == ("delete", "Bob")
-    assert analyser("rename a > b") == ("rename", "a > b")
+    assert analyser("edit [IMP] Pizza") == ("edit", "[IMP] Pizza")
 
 
 def _saison(n, top_1v1, top_2v2):
@@ -376,3 +375,18 @@ def test_lire_top_argument(tmp_path):
     assert app.lire_top("2V2") == ("2v2", "")
     assert app.lire_top("2v2 unl") == ("2v2", "unl")
     assert app.lire_top("pizza") == ("1v1", "pizza")
+
+
+def test_modifier_ne_compte_pas_de_rencontre(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.maintenant = lambda: "2026-11-15T23:00"  # une partie plus tard
+    assert app.modifier("bob").startswith("Bob")
+    joueur = app.carnet.trouver("Bob")
+    assert joueur.rencontres == 1 and joueur.derniere == "2026-11-15T20:00"
+
+
+def test_modifier_joueur_inconnu(tmp_path):
+    app = nouvelle_app(tmp_path)
+    assert "pas dans ton carnet" in app.modifier("Zorglub")
+    assert app.carnet.trouver("Zorglub") is None

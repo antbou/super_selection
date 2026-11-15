@@ -68,10 +68,11 @@ Bob
 
 Chaque nom tapé compte comme une rencontre, sauf si tu l'as déjà tapé il y a moins de
 30 minutes (pour relire une note en pleine partie). Pour seulement regarder une fiche
-sans compter de rencontre : `show Bob`.
+sans compter de rencontre : `show Bob`. Pour changer son style, ta note ou son nom à la
+fin d'une partie (sans recompter) : `edit Bob`.
 
 Un nom inconnu du top 100 et du carnet est signalé « Nouveau joueur », avec les noms
-proches s'il y en a : une faute de frappe se corrige avec `delete` ou `rename`.
+proches s'il y en a : une faute de frappe se corrige avec `delete` ou `edit` (qui renomme).
 
 ### Commandes
 
@@ -81,7 +82,7 @@ proches s'il y en a : une faute de frappe se corrige avec `delete` ou `rename`.
 | `show <nom>`       | voir sa fiche sans compter de rencontre          | `show Unloukee`      |
 | `list`             | tous les joueurs déjà croisés, du plus récent    | `list`               |
 | `delete <nom>`     | retirer un joueur du carnet (confirmation)       | `delete Pizza`       |
-| `rename <a> > <b>` | renommer un joueur (garde rencontres et styles)  | `rename Pizza > [IMP] Pizza` |
+| `edit <nom>`       | champs pré-remplis, sans compter            | `edit Pizza`         |
 | `styles`           | les mots-clés de style et leurs emojis           | `styles`             |
 | `export <fichier>` | écrire ton carnet dans un fichier pour un pote   | `export antho.json`  |
 | `import <fichier>` | fusionner le carnet d'un pote dans le tien       | `import kevin.json`  |

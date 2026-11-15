@@ -10,6 +10,7 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
 - **Rencontre** : le fait de taper le nom d'un joueur (taper son nom, ou `player <nom>`). Ça incrémente
   son compteur et met à jour la date et l'heure de la dernière rencontre, sauf si la précédente date de moins de 30 minutes (ADR 0010). Le compteur ne compte que
   les rencontres du propriétaire du carnet, jamais celles d'un pote.
+- **Edit** (`edit`) : changer le nom, le style et la note perso d'un joueur déjà croisé sans compter de rencontre (ADR 0016), typiquement en fin de partie.
 - **Style** (`Note`) : texte libre court qui décrit la façon de jouer d'un joueur (« aggressive,
   rush archers »). Un joueur a au plus un style par **auteur**.
 - **Note perso** (`Joueur.memo`, proposée après le style à chaque rencontre) : texte libre privé du propriétaire sur un joueur. Une seule par joueur ; jamais exportée ni fusionnée (ADR 0014). À ne pas confondre avec le **style** (classe `Note`, partagé).

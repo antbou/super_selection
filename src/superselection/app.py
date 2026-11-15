@@ -19,10 +19,10 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   <nom>             croiser un joueur              ex : [IMP] Pizza
   top [1v1|2v2]     le top 100 complet, avec recherche en tapant (Tab = changer de mode)
   show <nom>        voir sa fiche (3 dernières saisons) sans compter de rencontre
+  edit <nom>        corriger son nom, son style, ta note (champs pré-remplis), sans compter
   list              tous les joueurs déjà croisés
   delete <nom>      retirer un joueur du carnet (après confirmation)
   reset             vider tout le carnet (après confirmation)
-  rename <a> > <b>  renommer un joueur (ex : rename Pizza > [IMP] Pizza)
   export <fichier>  envoyer ton carnet à un pote   ex : export antho.json
   import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
   styles            les mots-clés de style et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
@@ -37,11 +37,11 @@ Joueur qui s'appelle comme une commande ?  player list"""
 # mot tapé -> commande
 COMMANDES = {
     "show": "show",
+    "edit": "edit",
     "top": "top",
     "list": "list",
     "delete": "delete",
     "reset": "reset",
-    "rename": "rename",
     "export": "export",
     "import": "import",
     "styles": "styles",
@@ -57,7 +57,7 @@ COMMANDES = {
 }
 
 # proposées par l'auto-complétion
-NOMS_COMMANDES = ("show", "top", "list", "delete", "reset", "rename", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
+NOMS_COMMANDES = ("show", "edit", "top", "list", "delete", "reset", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
 
 
 def analyser(ligne: str, noms_connus=()) -> tuple:
@@ -214,12 +214,20 @@ class App:
             fiche += "\n  " + self._c("Nouveau joueur.", "info")
             if proches := self._noms_proches(nom):
                 fiche += self._c(" Noms proches : ", "info") + ", ".join(proches)
-                fiche += self._c(" (si c'est le même : delete puis rename)", "info")
+                fiche += self._c(" (si c'est le même : delete, ou edit sur l'autre pour le renommer)", "info")
         return fiche
 
     def voir(self, nom: str) -> str:
         nom = self.nom_canonique(nom)
         return self._fiche(nom, self.carnet.trouver(nom), historique=True)
+
+    def modifier(self, nom: str) -> str:
+        """Fiche d'un joueur déjà croisé, avant de changer son nom, son style ou sa note : ne compte rien."""
+        nom = self.nom_canonique(nom)
+        joueur = self.carnet.trouver(nom)
+        if joueur is None:
+            return self._c(f"« {nom} » n'est pas dans ton carnet : tape son nom d'abord.", "erreur")
+        return self._fiche(joueur.nom, joueur)
 
     @staticmethod
     def lire_top(argument: str) -> tuple:
@@ -287,10 +295,10 @@ class App:
         self.carnet.sauver(self.chemin_carnet)
         return self._c(f"Carnet vidé ({nombre} joueur(s) retiré(s)). Ton pseudo est gardé.", "ok")
 
-    def renommer(self, argument: str) -> str:
-        ancien, separateur, nouveau = (p.strip() for p in argument.partition(">"))
-        if not separateur or not ancien or not sans_controle(nouveau).strip():
-            return "Indique l'ancien et le nouveau nom.  ex : rename Pizza > [IMP] Pizza"
+    def renommer(self, ancien: str, nouveau: str) -> str:
+        ancien = ancien.strip()
+        if not sans_controle(nouveau).strip():
+            return self._c("Indique le nouveau nom.", "erreur")
         joueur = self.carnet.trouver(ancien)
         if joueur is None:
             return self._c(f"« {ancien} » n'est pas dans ton carnet.", "erreur")
