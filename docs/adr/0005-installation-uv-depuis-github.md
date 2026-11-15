@@ -10,4 +10,4 @@ L'outil s'installe avec `uv tool install <zip de main sur GitHub>`. Sous Windows
 ## Conséquences
 
 - Publier une version, c'est pousser sur `main`.
-- `install.ps1` doit rester en ASCII avec des fins de ligne CRLF, parce que PowerShell 5.1 lit mal l'UTF-8 sans BOM.
+- `install.ps1` doit rester en ASCII (PowerShell 5.1 lit mal l'UTF-8 sans BOM) ; les fins de ligne sont indifférentes (avec `irm … | iex` le script passe comme une chaîne).

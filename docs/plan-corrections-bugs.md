@@ -1,3 +1,5 @@
+Document historique (version 0.2.0) : les points B1 à B8, W2, W3, S2, F1, F2 sont corrigés ; suite dans `plan-corrections-revue-2.md`.
+
 # Plan : corriger les bugs relevés par la revue du 15/11/2026
 
 Ce plan est écrit pour un agent qui n'a pas suivi la revue. Il se suffit à lui-même, mais
