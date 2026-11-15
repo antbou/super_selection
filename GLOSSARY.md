@@ -7,7 +7,7 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
   (`pizza` = `Pizza`), mais `[IMP] Pizza` et `Pizza` sont deux joueurs différents.
 - **Carnet** (`Carnet`) : l'ensemble des joueurs connus du propriétaire, enregistré dans
   `carnet.json`. Le carnet a un **auteur** : le pseudo du propriétaire.
-- **Rencontre** : le fait de taper le nom d'un joueur (commande `croiser`). Ça incrémente
+- **Rencontre** : le fait de taper le nom d'un joueur (taper son nom, ou `player <nom>`). Ça incrémente
   son compteur et met à jour la date de la dernière rencontre. Le compteur ne compte que
   les rencontres du propriétaire du carnet, jamais celles d'un pote.
 - **Style** (`Note`) : texte libre court qui décrit la façon de jouer d'un joueur (« agressif,

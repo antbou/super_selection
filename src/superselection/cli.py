@@ -10,7 +10,7 @@ from typing import Callable
 
 from platformdirs import user_cache_dir, user_data_dir
 
-from .app import AIDE, COMMANDES, App, analyser
+from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet
 from .classement import MODES, charger_classement, fetch_http
 
@@ -40,26 +40,26 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
     commande, argument = analyser(ligne)
     if commande == "rien":
         return True
-    if commande == "quitter":
+    if commande == "quit":
         return False
-    if commande == "aide":
+    if commande == "help":
         print(AIDE)
-    elif commande == "liste":
+    elif commande == "list":
         print(app.liste())
     elif commande == "export":
         print(app.exporter(argument))
     elif commande == "import":
         print(app.importer(argument))
-    elif commande == "maj":
+    elif commande == "refresh":
         app.classement, message = charger_classement(
             dossiers()[1] / "classement.json", fetch_http, maintenant()
         )
         print(message or f"Classement rechargé (saison {app.classement.saison}).")
-    elif commande == "voir":
-        print(app.voir(argument) if argument else "Indique un nom.  ex : voir [IMP] Pizza")
+    elif commande == "show":
+        print(app.voir(argument) if argument else "Indique un nom.  ex : show [IMP] Pizza")
     elif commande == "croiser":
         if not argument:
-            print("Indique un nom.  ex : joueur liste")
+            print("Indique un nom.  ex : player list")
             return True
         print(app.croiser(argument))
         nom = app._nom_canonique(argument)
@@ -111,11 +111,11 @@ def _session(app: App):
             commande = COMMANDES.get(mot.casefold()) if espace else None
             if commande in ("import", "export"):
                 yield from chemins.get_completions(Document(reste), complete_event)
-            elif commande in ("voir", "croiser"):
+            elif commande in ("show", "croiser"):
                 yield from self._noms(reste)
             elif texte:
                 if not espace:
-                    for c in ("voir", "liste", "export", "import", "maj", "aide", "quitter"):
+                    for c in NOMS_COMMANDES:
                         if c.startswith(texte.casefold()):
                             yield Completion(c, start_position=-len(texte), display_meta="commande")
                 yield from self._noms(texte)
@@ -173,7 +173,7 @@ def main(argv: list | None = None) -> None:
                 break
         return
 
-    print("Tape un nom de joueur (Tab pour compléter), « aide » pour les commandes.")
+    print("Tape un nom de joueur (Tab pour compléter), « help » pour les commandes.")
     while True:
         try:
             ligne = session.prompt("adversaire > ")

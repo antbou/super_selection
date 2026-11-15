@@ -12,41 +12,31 @@ Puis tu notes son style en une ligne. C'est tout.
 
 ## Installation
 
-**Sur Windows, en partant de zéro** : suis le guide pas à pas
-[docs/installation-windows.md](docs/installation-windows.md).
+### Windows
 
-En bref : il faut [uv](https://docs.astral.sh/uv/) (Windows, Linux ou macOS).
-
-Windows (PowerShell) :
+Ouvre **PowerShell**, colle cette ligne, Entrée :
 
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/antbou/super_selection/main/install.ps1 | iex"
 ```
 
-Linux / macOS :
+Ferme la fenêtre, rouvre-la, tape `superselection`. Rien d'autre à installer (ni Python,
+ni Git). Même ligne pour mettre à jour. Détails et dépannage :
+[docs/installation-windows.md](docs/installation-windows.md).
+
+### Linux / macOS
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install https://github.com/antbou/super_selection/archive/refs/heads/main.zip
 ```
-
-Puis, dans le dossier du projet :
-
-```bash
-uv tool install .
-```
-
-La commande `superselection` est alors disponible partout. Pour mettre à jour après
-une modification du code : `uv tool install . --reinstall`.
-
-Sous Windows, utilise **Windows Terminal** pour que les noms chinois ou cyrilliques
-s'affichent correctement.
 
 ## Utilisation
 
 ```text
 $ superselection
 Chargement du classement top 100… saison 29 OK.
-Tape un nom de joueur (Tab pour compléter), « aide » pour les commandes.
+Tape un nom de joueur (Tab pour compléter), « help » pour les commandes.
 
 adversaire > marme⇥            ← Tab complète : Marmelaaada  (1v1 #1)
 Marmelaaada
@@ -66,27 +56,27 @@ Bob
 ```
 
 Chaque nom tapé compte comme une rencontre. Pour seulement regarder une fiche sans
-compter de rencontre : `voir Bob`.
+compter de rencontre : `show Bob`.
 
 ### Commandes
 
 | Commande           | Ce que ça fait                                   | Exemple              |
 |--------------------|--------------------------------------------------|----------------------|
 | `<nom>`            | croiser un joueur, puis noter son style          | `[IMP] Pizza`        |
-| `voir <nom>`       | voir sa fiche sans compter de rencontre          | `voir Unloukee`      |
-| `liste`            | tous les joueurs déjà croisés, du plus récent    | `liste`              |
+| `show <nom>`       | voir sa fiche sans compter de rencontre          | `show Unloukee`      |
+| `list`             | tous les joueurs déjà croisés, du plus récent    | `list`               |
 | `export <fichier>` | écrire ton carnet dans un fichier pour un pote   | `export antho.json`  |
 | `import <fichier>` | fusionner le carnet d'un pote dans le tien       | `import kevin.json`  |
-| `maj`              | recharger le classement                          | `maj`                |
-| `aide`             | afficher l'aide                                  | `aide`               |
-| `quitter`          | sortir (ou Ctrl+D)                               | `q`                  |
+| `refresh`          | recharger le classement                          | `refresh`            |
+| `help`             | afficher l'aide                                  | `help`               |
+| `quit`             | sortir (ou `q`, `exit`, Ctrl+D)                  | `q`                  |
 
-Un joueur s'appelle comme une commande ? Utilise `joueur liste`.
+Un joueur s'appelle comme une commande ? Utilise `player list`.
 
 Tu peux aussi lancer une commande directement, sans la boucle :
 
 ```bash
-superselection liste
+superselection list
 superselection import kevin.json
 superselection "[IMP] Pizza"
 ```
@@ -94,7 +84,8 @@ superselection "[IMP] Pizza"
 ### Partager avec un pote
 
 1. Toi : `export antho.json`, puis tu lui envoies le fichier (Discord, mail…).
-2. Lui : `import antho.json`.
+2. Lui : `import antho.json` (astuce Windows : tape `import `, puis glisse le fichier
+   dans la fenêtre pour coller son chemin).
 
 La fusion ajoute les joueurs qu'il ne connaît pas et les styles que tu as notés,
 **signés de ton pseudo**. Elle ne touche jamais à ses propres notes. Le compteur

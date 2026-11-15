@@ -14,31 +14,34 @@ Tape le nom d'un adversaire : je te dis s'il est dans le top 100, je compte
 la rencontre, puis tu notes son style (Entrée = garder, « - » = effacer).
 Tab complète les noms (top 100 + joueurs déjà croisés).
 
-  <nom>             croiser un joueur        ex : [IMP] Pizza
-  voir <nom>        voir sa fiche sans compter de rencontre
-  liste             tous les joueurs déjà croisés
+  <nom>             croiser un joueur              ex : [IMP] Pizza
+  show <nom>        voir sa fiche sans compter de rencontre
+  list              tous les joueurs déjà croisés
   export <fichier>  envoyer ton carnet à un pote   ex : export antho.json
   import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
-  maj               recharger le classement
-  aide              cette aide
-  quitter           sortir (ou Ctrl+D)
+  refresh           recharger le classement
+  help              cette aide
+  quit              sortir (ou Ctrl+D)
 
-Joueur qui s'appelle comme une commande ?  joueur liste"""
+Joueur qui s'appelle comme une commande ?  player list"""
 
+# mot tapé -> commande
 COMMANDES = {
-    "voir": "voir",
-    "liste": "liste",
+    "show": "show",
+    "list": "list",
     "export": "export",
     "import": "import",
-    "maj": "maj",
-    "aide": "aide",
-    "help": "aide",
-    "?": "aide",
-    "quitter": "quitter",
-    "q": "quitter",
-    "exit": "quitter",
-    "joueur": "croiser",
+    "refresh": "refresh",
+    "help": "help",
+    "?": "help",
+    "quit": "quit",
+    "exit": "quit",
+    "q": "quit",
+    "player": "croiser",
 }
+
+# proposées par l'auto-complétion
+NOMS_COMMANDES = ("show", "list", "export", "import", "refresh", "help", "quit")
 
 
 def analyser(ligne: str) -> tuple:

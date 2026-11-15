@@ -22,12 +22,14 @@ def nouvelle_app(tmp_path, classement=True):
 
 
 def test_analyser_commandes():
-    assert analyser("liste") == ("liste", "")
-    assert analyser("  voir  [IMP] Pizza ") == ("voir", "[IMP] Pizza")
+    assert analyser("list") == ("list", "")
+    assert analyser("  show  [IMP] Pizza ") == ("show", "[IMP] Pizza")
     assert analyser('import "C:\\Users\\moi\\kevin.json"') == ("import", "C:\\Users\\moi\\kevin.json")
-    assert analyser("Q") == ("quitter", "")
+    assert analyser("Q") == ("quit", "")
+    assert analyser("HELP") == ("help", "")
+    assert analyser("refresh") == ("refresh", "")
     assert analyser("[imp] pizza") == ("croiser", "[imp] pizza")
-    assert analyser("joueur liste") == ("croiser", "liste")
+    assert analyser("player list") == ("croiser", "list")
     assert analyser("") == ("rien", "")
 
 
