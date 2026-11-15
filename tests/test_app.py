@@ -154,3 +154,14 @@ def test_analyser_nom_connu_qui_ressemble_a_une_commande():
     assert analyser("show Bob", connus) == ("show", "Bob")
     assert analyser("player list", connus) == ("croiser", "list")
     assert analyser("Q") == ("quit", "")
+
+
+def test_fiche_d_un_homonyme_montre_les_deux_rangs(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.classement.lignes["1v1"] = [
+        {"name": "Marmelaaada", "rating": 758},
+        {"name": "Autre", "rating": 700},
+        {"name": "Marmelaaada", "rating": 403},
+    ]
+    texte = app.voir("Marmelaaada")
+    assert "1v1 : #1 (758 pts) ou #3 (403 pts) — 2 joueurs portent ce nom" in texte

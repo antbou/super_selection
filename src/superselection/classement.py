@@ -43,12 +43,19 @@ class Classement:
     lignes: dict  # mode -> liste de {"name", "rating"}, dans l'ordre du classement
     recupere_le: str
 
-    def rang(self, nom: str, mode: str) -> Rang | None:
+    def rangs(self, nom: str, mode: str) -> list:
+        """Tous les rangs portant ce nom (des homonymes existent), dans l'ordre du classement."""
         cle = nom.casefold()
-        for position, ligne in enumerate(self.lignes.get(mode, []), start=1):
-            if ligne["name"].casefold() == cle:
-                return Rang(position, ligne["rating"])
-        return None
+        return [
+            Rang(position, ligne["rating"])
+            for position, ligne in enumerate(self.lignes.get(mode, []), start=1)
+            if ligne["name"].casefold() == cle
+        ]
+
+    def rang(self, nom: str, mode: str) -> Rang | None:
+        """Le premier rang de ce nom, ou None."""
+        trouves = self.rangs(nom, mode)
+        return trouves[0] if trouves else None
 
     def nom_officiel(self, nom: str) -> str | None:
         cle = nom.casefold()

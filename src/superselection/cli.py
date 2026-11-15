@@ -138,7 +138,9 @@ def _session(app: App):
             if app.classement is None:
                 return ""
             rangs = [
-                f"{mode} #{r.position}" for mode in MODES if (r := app.classement.rang(nom, mode))
+                f"{mode} " + "/".join(f"#{r.position}" for r in trouves)
+                for mode in MODES
+                if (trouves := app.classement.rangs(nom, mode))
             ]
             joueur = app.carnet.trouver(nom)
             if joueur and joueur.rencontres:

@@ -89,3 +89,15 @@ def test_charger_hors_ligne_sans_cache(tmp_path):
     c, message = charger_classement(tmp_path / "absent.json", panne, maintenant="")
     assert c is None
     assert "indisponible" in message
+
+
+def test_rangs_rend_tous_les_homonymes():
+    lignes = [
+        {"name": "Marmelaaada", "rating": 758},
+        {"name": "Autre", "rating": 700},
+        {"name": "marmelaaada", "rating": 403},
+    ]
+    c = Classement(saison=29, lignes={"1v1": lignes, "2v2": []}, recupere_le="")
+    assert [(r.position, r.points) for r in c.rangs("MARMELAAADA", "1v1")] == [(1, 758), (3, 403)]
+    assert c.rang("marmelaaada", "1v1").position == 1
+    assert c.rangs("Personne", "1v1") == []

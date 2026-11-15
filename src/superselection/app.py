@@ -106,12 +106,17 @@ class App:
             return "  " + self._c("(classement indisponible)", "info")
         morceaux = []
         for mode in ("1v1", "2v2"):
-            rang = self.classement.rang(nom, mode)
-            if rang:
-                morceaux.append(
-                    f"{mode} : " + self._c(f"#{rang.position}", role_rang(rang.position))
-                    + self._c(f" ({rang.points} pts)", "info")
+            rangs = self.classement.rangs(nom, mode)
+            if rangs:
+                ou = self._c(" ou ", "info")
+                texte = ou.join(
+                    self._c(f"#{r.position}", role_rang(r.position))
+                    + self._c(f" ({r.points} pts)", "info")
+                    for r in rangs
                 )
+                if len(rangs) > 1:
+                    texte += self._c(f" — {len(rangs)} joueurs portent ce nom", "info")
+                morceaux.append(f"{mode} : " + texte)
             else:
                 morceaux.append(f"{mode} : " + self._c("hors top 100", "hors"))
         return "  " + self._c("   ·   ", "info").join(morceaux)

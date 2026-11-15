@@ -27,3 +27,17 @@ def test_fiche_en_couleur_meme_texte_que_sans_couleur(tmp_path):
     liste_couleur = app.liste()
     app.couleur = False
     assert sans_couleur(liste_couleur) == app.liste()
+
+
+def test_homonymes_meme_texte_avec_et_sans_couleur(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.classement.lignes["1v1"] = [
+        {"name": "Marmelaaada", "rating": 758},
+        {"name": "Marmelaaada", "rating": 403},
+    ]
+    sans = app.voir("Marmelaaada")
+    app.couleur = True
+    avec = app.voir("Marmelaaada")
+    assert "\x1b[" in avec
+    assert sans_couleur(avec) == sans
+    assert "2 joueurs portent ce nom" in sans
