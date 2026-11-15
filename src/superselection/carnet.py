@@ -7,11 +7,13 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from .texte import sans_controle
 
 VERSION = 1
+FENETRE_RENCONTRE = timedelta(minutes=30)  # retaper un nom dans ce délai ne compte pas
 
 
 class CarnetInvalide(ValueError):
@@ -60,11 +62,33 @@ class Carnet:
             self._joueurs[nom.casefold()] = joueur
         return joueur
 
-    def croiser(self, nom: str, jour: str) -> Joueur:
+    def croiser(self, nom: str, quand: str) -> Joueur:
+        """Compte une rencontre, sauf si la précédente date de moins de 30 minutes.
+
+        `quand` est une date-heure ISO ; `derniere` garde alors l'heure (une date seule,
+        d'un ancien carnet, ne bloque jamais le comptage).
+        """
         joueur = self._obtenir(nom)
-        joueur.rencontres += 1
-        joueur.derniere = jour
+        if not _trop_proche(joueur.derniere, quand):
+            joueur.rencontres += 1
+            joueur.derniere = quand
         return joueur
+
+    def supprimer(self, nom: str) -> Joueur | None:
+        """Retire un joueur du carnet (rencontres et notes). Renvoie le joueur retiré."""
+        return self._joueurs.pop(nom.casefold(), None)
+
+    def renommer(self, ancien: str, nouveau: str) -> None:
+        """Change le nom d'un joueur en gardant ses rencontres et ses styles.
+
+        Lève KeyError si `ancien` est absent, ValueError si `nouveau` désigne un autre joueur.
+        """
+        joueur = self._joueurs[ancien.casefold()]
+        if nouveau.casefold() != ancien.casefold() and nouveau.casefold() in self._joueurs:
+            raise ValueError(nouveau)
+        del self._joueurs[ancien.casefold()]
+        joueur.nom = nouveau
+        self._joueurs[nouveau.casefold()] = joueur
 
     def noter(self, nom: str, texte: str, maintenant: str) -> None:
         """Remplace mon style pour ce joueur ; un texte vide l'efface."""
@@ -196,3 +220,13 @@ def _lire_joueur(numero: int, brut) -> Joueur:
             raise CarnetInvalide(f"{lieu} : « maj » du style de « {auteur} » doit être un texte")
         styles[sans_controle(auteur).strip()] = Note(sans_controle(note["texte"]).strip(), maj)
     return Joueur(nom=nom, rencontres=rencontres, derniere=derniere, styles=styles)
+
+
+def _trop_proche(derniere: str | None, quand: str) -> bool:
+    if not derniere or len(derniere) <= 10 or len(quand) <= 10:  # pas d'heure connue
+        return False
+    try:
+        ecart = datetime.fromisoformat(quand) - datetime.fromisoformat(derniere)
+    except ValueError:
+        return False
+    return timedelta(0) <= ecart < FENETRE_RENCONTRE

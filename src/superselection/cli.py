@@ -39,10 +39,6 @@ def maintenant() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-def aujourd_hui() -> str:
-    return datetime.now().date().isoformat()
-
-
 _COULEUR = False  # activé par main() si le terminal le permet
 
 
@@ -79,6 +75,23 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         afficher(aide_styles())
     elif commande == "list":
         afficher(app.liste())
+    elif commande == "delete":
+        if not argument:
+            afficher(c("Indique un nom.  ex : delete Pizza", "info"))
+        elif (joueur := app.carnet.trouver(argument)) is None:
+            afficher(app.supprimer(argument))
+        else:
+            question = (
+                f"  Supprimer {joueur.nom} ({joueur.rencontres} rencontre(s), {len(joueur.styles)} style(s)) ? "
+                + c("(o = oui, Entrée = non)", "info") + " > "
+            )
+            try:
+                reponse = demander(question, "").strip().casefold()
+            except (KeyboardInterrupt, EOFError):
+                reponse = ""
+            afficher(app.supprimer(argument) if reponse in ("o", "oui", "y", "yes") else c("Annulé.", "info"))
+    elif commande == "rename":
+        afficher(app.renommer(argument))
     elif commande == "export":
         afficher(app.exporter(argument))
     elif commande == "import":
@@ -163,7 +176,9 @@ def _session(app: App):
             commande = COMMANDES.get(mot.casefold()) if espace else None
             if commande in ("import", "export"):
                 yield from chemins.get_completions(Document(reste), complete_event)
-            elif commande in ("show", "croiser"):
+            elif commande in ("show", "croiser", "delete"):
+                yield from self._noms(reste)
+            elif commande == "rename" and ">" not in reste:
                 yield from self._noms(reste)
             elif texte:
                 if not espace:
@@ -286,7 +301,7 @@ def _principal(argv: list) -> None:
         )
 
     app = App(
-        carnet, chemin_carnet, classement, aujourd_hui=aujourd_hui, maintenant=maintenant, couleur=_COULEUR
+        carnet, chemin_carnet, classement, maintenant=maintenant, couleur=_COULEUR
     )
 
     if interactif:

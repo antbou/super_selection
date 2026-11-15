@@ -9,6 +9,7 @@ from .carnet import Carnet, Joueur
 from .classement import Classement
 from .couleurs import peindre, role_rang
 from .styles import decorer
+from .texte import sans_controle
 
 AIDE = """\
 Tape le nom d'un adversaire : je te dis s'il est dans le top 100, je compte
@@ -18,6 +19,8 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   <nom>             croiser un joueur              ex : [IMP] Pizza
   show <nom>        voir sa fiche sans compter de rencontre
   list              tous les joueurs déjà croisés
+  delete <nom>      retirer un joueur du carnet (après confirmation)
+  rename <a> > <b>  renommer un joueur (ex : rename Pizza > [IMP] Pizza)
   export <fichier>  envoyer ton carnet à un pote   ex : export antho.json
   import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
   styles            les mots-clés de style et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
@@ -33,6 +36,8 @@ Joueur qui s'appelle comme une commande ?  player list"""
 COMMANDES = {
     "show": "show",
     "list": "list",
+    "delete": "delete",
+    "rename": "rename",
     "export": "export",
     "import": "import",
     "styles": "styles",
@@ -48,7 +53,7 @@ COMMANDES = {
 }
 
 # proposées par l'auto-complétion
-NOMS_COMMANDES = ("show", "list", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
+NOMS_COMMANDES = ("show", "list", "delete", "rename", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
 
 
 def analyser(ligne: str, noms_connus=()) -> tuple:
@@ -85,14 +90,12 @@ class App:
         carnet: Carnet,
         chemin_carnet: Path,
         classement: Classement | None,
-        aujourd_hui: Callable[[], str],
         maintenant: Callable[[], str],
         couleur: bool = False,
     ):
         self.carnet = carnet
         self.chemin_carnet = Path(chemin_carnet)
         self.classement = classement
-        self.aujourd_hui = aujourd_hui
         self.maintenant = maintenant
         self.couleur = couleur
 
@@ -121,10 +124,17 @@ class App:
                 morceaux.append(f"{mode} : " + self._c("hors top 100", "hors"))
         return "  " + self._c("   ·   ", "info").join(morceaux)
 
-    def _fiche(self, nom: str, joueur: Joueur | None, vient_de_croiser: bool = False) -> str:
+    def _fiche(
+        self, nom: str, joueur: Joueur | None, vient_de_croiser: bool = False, deja_compte: bool = False
+    ) -> str:
         lignes = [self._c(nom, "nom"), self._ligne_rangs(nom)]
         if joueur is None or joueur.rencontres == 0:
             lignes.append("  " + self._c("Jamais croisé.", "info"))
+        elif deja_compte:
+            lignes.append(
+                f"  Croisé {joueur.rencontres} fois — "
+                + self._c("rencontre déjà comptée il y a moins de 30 minutes.", "info")
+            )
         elif joueur.rencontres == 1 and vient_de_croiser:
             lignes.append("  " + self._c("Première rencontre.", "ok"))
         else:
@@ -149,11 +159,28 @@ class App:
 
     # --- commandes --------------------------------------------------------
 
+    def _noms_proches(self, nom: str) -> list:
+        cle = nom.casefold()
+        proches = [n for n in self.noms() if n.casefold() != cle and (cle in n.casefold() or n.casefold() in cle)]
+        return proches[:5]
+
     def croiser(self, nom: str) -> str:
         nom = self.nom_canonique(nom)
-        joueur = self.carnet.croiser(nom, jour=self.aujourd_hui())
-        self.carnet.sauver(self.chemin_carnet)
-        return self._fiche(joueur.nom, joueur, vient_de_croiser=True)
+        inconnu = self.carnet.trouver(nom) is None and not (
+            self.classement and self.classement.nom_officiel(nom)
+        )
+        avant = (j.rencontres if (j := self.carnet.trouver(nom)) else 0)
+        joueur = self.carnet.croiser(nom, quand=self.maintenant())
+        deja_compte = joueur.rencontres == avant
+        if not deja_compte:
+            self.carnet.sauver(self.chemin_carnet)
+        fiche = self._fiche(joueur.nom, joueur, vient_de_croiser=True, deja_compte=deja_compte)
+        if inconnu:
+            fiche += "\n  " + self._c("Nouveau joueur.", "info")
+            if proches := self._noms_proches(nom):
+                fiche += self._c(" Noms proches : ", "info") + ", ".join(proches)
+                fiche += self._c(" (si c'est le même : delete puis rename)", "info")
+        return fiche
 
     def voir(self, nom: str) -> str:
         nom = self.nom_canonique(nom)
@@ -167,6 +194,30 @@ class App:
     def noter(self, nom: str, texte: str) -> None:
         self.carnet.noter(self.nom_canonique(nom), texte, maintenant=self.maintenant())
         self.carnet.sauver(self.chemin_carnet)
+
+    def supprimer(self, nom: str) -> str:
+        joueur = self.carnet.supprimer(nom.strip())
+        if joueur is None:
+            return self._c(f"« {nom.strip()} » n'est pas dans ton carnet.", "erreur")
+        self.carnet.sauver(self.chemin_carnet)
+        return self._c(f"{joueur.nom} retiré du carnet.", "ok")
+
+    def renommer(self, argument: str) -> str:
+        ancien, separateur, nouveau = (p.strip() for p in argument.partition(">"))
+        if not separateur or not ancien or not sans_controle(nouveau).strip():
+            return "Indique l'ancien et le nouveau nom.  ex : rename Pizza > [IMP] Pizza"
+        joueur = self.carnet.trouver(ancien)
+        if joueur is None:
+            return self._c(f"« {ancien} » n'est pas dans ton carnet.", "erreur")
+        nouveau = sans_controle(nouveau).strip()
+        if self.classement and (officiel := self.classement.nom_officiel(nouveau)):
+            nouveau = officiel  # casse exacte du classement ; sinon tel que tapé
+        try:
+            self.carnet.renommer(ancien, nouveau)
+        except ValueError:
+            return self._c(f"« {nouveau} » existe déjà dans ton carnet : supprime l'un des deux d'abord.", "erreur")
+        self.carnet.sauver(self.chemin_carnet)
+        return self._c(f"{ancien} renommé en {nouveau}.", "ok")
 
     def liste(self) -> str:
         joueurs = [j for j in self.carnet.recents() if j.rencontres or j.styles]

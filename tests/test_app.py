@@ -16,7 +16,6 @@ def nouvelle_app(tmp_path, classement=True):
         carnet=Carnet(auteur="Antho"),
         chemin_carnet=tmp_path / "carnet.json",
         classement=c,
-        aujourd_hui=lambda: "2026-11-15",
         maintenant=lambda: "2026-11-15T20:00",
     )
 
@@ -50,6 +49,7 @@ def test_croiser_deux_fois_affiche_le_compteur_et_le_style(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     app.noter("Bob", "rush")
+    app.maintenant = lambda: "2026-11-15T21:00"  # plus de 30 minutes après
     texte = app.croiser("bob")
     assert "1v1 : hors top 100" in texte
     assert "Croisé 2 fois" in texte
@@ -87,7 +87,6 @@ def test_export_puis_import_chez_le_pote(tmp_path):
         carnet=Carnet(auteur="Kevin"),
         chemin_carnet=tmp_path / "kevin_carnet.json",
         classement=None,
-        aujourd_hui=lambda: "2026-11-15",
         maintenant=lambda: "2026-11-15T21:00",
     )
     texte = pote.importer(str(fichier))
@@ -165,3 +164,100 @@ def test_fiche_d_un_homonyme_montre_les_deux_rangs(tmp_path):
     ]
     texte = app.voir("Marmelaaada")
     assert "1v1 : #1 (758 pts) ou #3 (403 pts) — 2 joueurs portent ce nom" in texte
+
+
+# --- F2 : pas de rencontre en double -------------------------------------------
+
+
+def test_retaper_un_nom_peu_apres_ne_recompte_pas(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.maintenant = lambda: "2026-11-15T20:29:59"
+    texte = app.croiser("Bob")
+    assert app.carnet.trouver("Bob").rencontres == 1
+    assert app.carnet.trouver("Bob").derniere == "2026-11-15T20:00"
+    assert "déjà comptée" in texte
+    assert "Première rencontre" not in texte
+
+
+def test_apres_30_minutes_on_recompte(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.maintenant = lambda: "2026-11-15T20:30:00"
+    texte = app.croiser("Bob")
+    assert app.carnet.trouver("Bob").rencontres == 2
+    assert "déjà comptée" not in texte
+
+
+def test_ancien_carnet_avec_date_seule_recompte(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.carnet.croiser("Bob", quand="2026-11-15")
+    app.croiser("Bob")
+    assert app.carnet.trouver("Bob").rencontres == 2
+
+
+# --- F1 : suppression, renommage, nouveau joueur -------------------------------
+
+
+def test_nouveau_joueur_propose_des_noms_proches(tmp_path):
+    app = nouvelle_app(tmp_path)
+    texte = app.croiser("Pizza")
+    assert "Nouveau joueur." in texte
+    assert "Noms proches : [IMP] Pizza" in texte
+    assert app.carnet.trouver("Pizza") is not None  # on suggère, on ne fusionne pas
+
+
+def test_pas_de_signal_pour_un_joueur_connu(tmp_path):
+    app = nouvelle_app(tmp_path)
+    assert "Nouveau joueur" not in app.croiser("unloukee")  # dans le top 100
+    app.croiser("Bob")
+    app.maintenant = lambda: "2026-11-15T22:00"
+    assert "Nouveau joueur" not in app.croiser("bob")  # déjà dans le carnet
+
+
+def test_nouveau_joueur_sans_nom_proche(tmp_path):
+    texte = nouvelle_app(tmp_path).croiser("Zzz")
+    assert "Nouveau joueur." in texte and "Noms proches" not in texte
+
+
+def test_supprimer(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    assert "retiré" in app.supprimer("BOB")
+    assert app.carnet.trouver("Bob") is None
+    assert "Bob" not in (tmp_path / "carnet.json").read_text(encoding="utf-8")
+    assert "n'est pas dans ton carnet" in app.supprimer("Bob")
+
+
+def test_renommer_garde_rencontres_et_styles(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Pizza")
+    app.noter("Pizza", "rush")
+    assert "renommé" in app.renommer("pizza > [IMP] Pizza")
+    assert app.carnet.trouver("Pizza") is None
+    joueur = app.carnet.trouver("[IMP] Pizza")
+    assert (joueur.nom, joueur.rencontres, joueur.styles["Antho"].texte) == ("[IMP] Pizza", 1, "rush")
+    assert "[IMP] Pizza" in (tmp_path / "carnet.json").read_text(encoding="utf-8")
+
+
+def test_renommer_refuse_les_cas_invalides(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.croiser("Alice")
+    assert "existe déjà" in app.renommer("Bob > alice")
+    assert "n'est pas dans ton carnet" in app.renommer("Zed > Zoe")
+    assert "ex : rename" in app.renommer("Bob")
+    assert "ex : rename" in app.renommer("Bob > ")
+    assert app.carnet.trouver("Bob") is not None
+
+
+def test_renommer_juste_la_casse(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("bob")
+    assert "renommé" in app.renommer("bob > Bob")
+    assert app.carnet.trouver("bob").nom == "Bob"
+
+
+def test_analyser_delete_rename():
+    assert analyser("delete Bob") == ("delete", "Bob")
+    assert analyser("rename a > b") == ("rename", "a > b")

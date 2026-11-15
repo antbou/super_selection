@@ -125,6 +125,7 @@ def test_tiret_efface_le_style(tmp_path):
 def test_reponse_vide_garde_le_style(tmp_path):
     app = nouvelle_app(tmp_path)
     cli.executer(app, "Bob", lambda q, d: "rush")
+    app.maintenant = lambda: "2026-11-15T21:00"
     cli.executer(app, "Bob", lambda q, d: "")
     assert _style(app, "Bob") == "rush"
     assert app.carnet.trouver("Bob").rencontres == 2
@@ -154,6 +155,7 @@ def test_boucle_interactive_continue_si_l_enregistrement_echoue(isole, monkeypat
 def test_joueur_nomme_comme_une_commande_est_croise(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Show Me")
+    app.maintenant = lambda: "2026-11-15T21:00"
     assert cli.executer(app, "show me", lambda q, d: "") is True
     assert app.carnet.trouver("Show Me").rencontres == 2
 
@@ -168,3 +170,40 @@ def test_update_sans_internet_reste_dans_l_outil(tmp_path, monkeypatch, capsys):
     sortie = capsys.readouterr().out
     assert "Impossible de vérifier la dernière version" in sortie
     assert "Déjà à jour" not in sortie
+
+
+# --- delete / rename -----------------------------------------------------------
+
+
+@pytest.mark.parametrize("reponse,reste", [("o", None), ("", "Bob"), ("n", "Bob")])
+def test_delete_demande_confirmation(tmp_path, reponse, reste):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    questions = []
+
+    def demander(question, defaut):
+        questions.append(question)
+        return reponse
+
+    assert cli.executer(app, "delete bob", demander) is True
+    assert len(questions) == 1
+    assert (app.carnet.trouver("Bob") and "Bob") == reste
+
+
+def test_delete_ctrl_c_annule(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+
+    def demander(question, defaut):
+        raise KeyboardInterrupt
+
+    cli.executer(app, "delete Bob", demander)
+    assert app.carnet.trouver("Bob") is not None
+
+
+def test_rename_via_executer(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Pizza")
+    cli.executer(app, "rename Pizza > Pizza2", lambda q, d: "")
+    assert app.carnet.trouver("Pizza") is None
+    assert app.carnet.trouver("Pizza2").rencontres == 1

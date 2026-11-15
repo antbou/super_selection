@@ -8,7 +8,7 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
 - **Carnet** (`Carnet`) : l'ensemble des joueurs connus du propriétaire, enregistré dans
   `carnet.json`. Le carnet a un **auteur** : le pseudo du propriétaire.
 - **Rencontre** : le fait de taper le nom d'un joueur (taper son nom, ou `player <nom>`). Ça incrémente
-  son compteur et met à jour la date de la dernière rencontre. Le compteur ne compte que
+  son compteur et met à jour la date et l'heure de la dernière rencontre, sauf si la précédente date de moins de 30 minutes (ADR 0010). Le compteur ne compte que
   les rencontres du propriétaire du carnet, jamais celles d'un pote.
 - **Style** (`Note`) : texte libre court qui décrit la façon de jouer d'un joueur (« aggressive,
   rush archers »). Un joueur a au plus un style par **auteur**.
