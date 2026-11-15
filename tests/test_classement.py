@@ -101,3 +101,54 @@ def test_rangs_rend_tous_les_homonymes():
     assert [(r.position, r.points) for r in c.rangs("MARMELAAADA", "1v1")] == [(1, 758), (3, 403)]
     assert c.rang("marmelaaada", "1v1").position == 1
     assert c.rangs("Personne", "1v1") == []
+
+
+# --- lecture de la réponse et du cache ----------------------------------------
+
+from superselection.classement import _lire_cache, lire_reponse
+
+
+def test_lire_reponse_valide():
+    corps = {"error": 0, "data": [{"name": "Pizza", "rating": 872}]}
+    assert lire_reponse(corps) == [{"name": "Pizza", "rating": 872}]
+
+
+@pytest.mark.parametrize(
+    "corps",
+    [[], "x", {"error": 1, "description": "boum", "data": []}, {"error": 0, "data": {}}, {"error": 0}],
+)
+def test_lire_reponse_refuse(corps):
+    with pytest.raises(ErreurClassement):
+        lire_reponse(corps)
+
+
+def test_lire_reponse_ignore_les_lignes_mal_formees_et_nettoie():
+    corps = {
+        "error": 0,
+        "data": [
+            "x",
+            {"name": "", "rating": 1},
+            {"name": 3, "rating": 1},
+            {"name": "Sans points"},
+            {"name": "Bool", "rating": True},
+            {"name": "Bon\x1b[2J", "rating": 5},
+        ],
+    }
+    assert lire_reponse(corps) == [{"name": "Bon[2J", "rating": 5}]
+
+
+def test_cache_impossible_a_ecrire_n_empeche_pas_le_classement(tmp_path):
+    fichier = tmp_path / "fichier"
+    fichier.write_text("x", encoding="utf-8")
+    saisons = {s: FIXTURE for s in range(1, 30)}
+    c, message = charger_classement(fichier / "c.json", faux_fetch(saisons), maintenant="")
+    assert c.saison == 29
+    assert message is None
+
+
+def test_cache_de_mauvaise_forme_est_ignore(tmp_path):
+    cache = tmp_path / "c.json"
+    for contenu in ("[]", '{"saison": 29, "lignes": [], "recupere_le": ""}', '{"saison": "x"}',
+                    '{"saison": 29, "lignes": {"1v1": [3]}, "recupere_le": ""}'):
+        cache.write_text(contenu, encoding="utf-8")
+        assert _lire_cache(cache) is None

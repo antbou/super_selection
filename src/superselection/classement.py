@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+
+from .texte import sans_controle
 
 API = "https://ratings.warselect.io/webapi/top100{mode}?season={saison}"
 MODES = ("1v1", "2v2")
@@ -20,15 +23,35 @@ class ErreurClassement(Exception):
     pass
 
 
+def lire_reponse(corps) -> list:
+    """Extrait les lignes valides {"name", "rating"} d'une réponse de l'API."""
+    if not isinstance(corps, dict):
+        raise ErreurClassement("réponse inattendue de l'API")
+    if corps.get("error", 0) != 0 or not isinstance(corps.get("data"), list):
+        raise ErreurClassement(str(corps.get("description") or "réponse inattendue de l'API"))
+    lignes = []
+    for ligne in corps["data"]:
+        if not isinstance(ligne, dict):
+            continue
+        nom, points = ligne.get("name"), ligne.get("rating")
+        if not isinstance(nom, str) or isinstance(points, bool) or not isinstance(points, int):
+            continue
+        nom = sans_controle(nom).strip()
+        if nom:
+            lignes.append({"name": nom, "rating": points})
+    return lignes
+
+
 def fetch_http(mode: str, saison: int) -> list:
     requete = urllib.request.Request(
         API.format(mode=mode, saison=saison), headers={"User-Agent": "superselection"}
     )
-    with urllib.request.urlopen(requete, timeout=10) as reponse:
-        corps = json.load(reponse)
-    if corps.get("error", 0) != 0 or not isinstance(corps.get("data"), list):
-        raise ErreurClassement(corps.get("description") or "réponse inattendue de l'API")
-    return corps["data"]
+    try:
+        with urllib.request.urlopen(requete, timeout=10) as reponse:
+            corps = json.load(reponse)
+    except http.client.HTTPException as erreur:
+        raise ErreurClassement(f"réponse HTTP invalide ({erreur})") from erreur
+    return lire_reponse(corps)
 
 
 @dataclass(frozen=True)
@@ -101,8 +124,20 @@ def derniere_saison(fetch: Fetcher, depuis: int | None = None) -> int:
 def _lire_cache(cache: Path) -> Classement | None:
     try:
         brut = json.loads(cache.read_text(encoding="utf-8"))
-        return Classement(saison=brut["saison"], lignes=brut["lignes"], recupere_le=brut["recupere_le"])
-    except (OSError, ValueError, KeyError):
+        saison, lignes, recupere_le = brut["saison"], brut["lignes"], brut["recupere_le"]
+        if (
+            isinstance(saison, bool)
+            or not isinstance(saison, int)
+            or not isinstance(recupere_le, str)
+            or not isinstance(lignes, dict)
+        ):
+            return None
+        for mode in MODES:
+            for ligne in lignes.get(mode, []):
+                if not isinstance(ligne["name"], str) or not isinstance(ligne["rating"], int):
+                    return None
+        return Classement(saison=saison, lignes=lignes, recupere_le=recupere_le)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return None
 
 
@@ -123,11 +158,14 @@ def charger_classement(
         return None, f"(classement indisponible : {erreur})"
 
     classement = Classement(saison=saison, lignes=lignes, recupere_le=maintenant)
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text(
-        json.dumps(
-            {"saison": saison, "lignes": lignes, "recupere_le": maintenant}, ensure_ascii=False
-        ),
-        encoding="utf-8",
-    )
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(
+            json.dumps(
+                {"saison": saison, "lignes": lignes, "recupere_le": maintenant}, ensure_ascii=False
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass  # cache impossible à écrire : le classement téléchargé reste utilisé
     return classement, None
