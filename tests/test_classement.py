@@ -173,3 +173,12 @@ def test_charger_saison_inexistante_ou_reseau_en_panne(tmp_path):
         raise OSError("hors ligne")
 
     assert charger_saison(tmp_path, panne, 28, "") is None
+
+
+def test_charger_ne_telecharge_pas_deux_fois_le_1v1_de_la_saison_en_cours(tmp_path):
+    appels = []
+    saisons = {s: FIXTURE for s in range(1, 30)}
+    c, _ = charger_classement(tmp_path / "c.json", faux_fetch(saisons, appels), maintenant="2026-11-15T10:00")
+    assert c.saison == 29
+    assert appels.count(("1v1", 29)) == 1
+    assert len(appels) == len(set(appels))

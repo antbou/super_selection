@@ -149,9 +149,17 @@ def charger_classement(
     Renvoie (classement ou None, message à afficher ou None).
     """
     ancien = _lire_cache(cache)
+    reponses: dict = {}
+
+    def fetch_unique(mode: str, saison: int) -> list:
+        """Une seule requête par (mode, saison) le temps de l'appel."""
+        if (mode, saison) not in reponses:
+            reponses[(mode, saison)] = fetch(mode, saison)
+        return reponses[(mode, saison)]
+
     try:
-        saison = derniere_saison(fetch, depuis=ancien.saison if ancien else None)
-        lignes = {mode: fetch(mode, saison) for mode in MODES}
+        saison = derniere_saison(fetch_unique, depuis=ancien.saison if ancien else None)
+        lignes = {mode: fetch_unique(mode, saison) for mode in MODES}
     except (OSError, ErreurClassement, ValueError) as erreur:
         if ancien:
             return ancien, f"(hors ligne : classement du {ancien.recupere_le[:16].replace('T', ' ')})"
