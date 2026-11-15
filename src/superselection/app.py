@@ -8,24 +8,24 @@ from typing import Callable
 from .carnet import Carnet, Joueur
 from .classement import MODES, Classement
 from .couleurs import peindre, role_rang
-from .styles import decorer
+from .traits import aide_traits, decorer, valider
 from .texte import sans_controle
 
 AIDE = """\
 Tape le nom d'un adversaire : je te dis s'il est dans le top 100, je compte
-la rencontre, puis tu notes son style et une note perso (Entrée = garder, « - » = effacer).
+la rencontre, puis tu notes son trait et une note perso (Entrée = garder, « - » = effacer).
 Tab complète les noms (top 100 + joueurs déjà croisés).
 
   <nom>             croiser un joueur              ex : [IMP] Pizza
   top [1v1|2v2]     le top 100 complet, avec recherche en tapant (Tab = changer de mode)
   show <nom>        voir sa fiche (3 dernières saisons) sans compter de rencontre
-  edit <nom>        corriger son nom, son style, ta note (champs pré-remplis), sans compter
+  edit <nom>        corriger son nom, son trait, ta note (champs pré-remplis), sans compter
   list              tous les joueurs déjà croisés
   delete <nom>      retirer un joueur du carnet (après confirmation)
   reset             vider tout le carnet (après confirmation)
   export <fichier>  envoyer ton carnet à un pote   ex : export antho.json
   import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
-  styles            les mots-clés de style et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
+  traits            les mots-clés de trait et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
   refresh           recharger le classement
   update            installer la dernière version
   version           voir la version installée
@@ -44,7 +44,7 @@ COMMANDES = {
     "reset": "reset",
     "export": "export",
     "import": "import",
-    "styles": "styles",
+    "traits": "traits",
     "refresh": "refresh",
     "update": "update",
     "version": "version",
@@ -57,7 +57,7 @@ COMMANDES = {
 }
 
 # proposées par l'auto-complétion
-NOMS_COMMANDES = ("show", "edit", "top", "list", "delete", "reset", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
+NOMS_COMMANDES = ("show", "edit", "top", "list", "delete", "reset", "traits", "export", "import", "refresh", "update", "version", "help", "quit")
 
 
 def analyser(ligne: str, noms_connus=()) -> tuple:
@@ -176,12 +176,12 @@ class App:
             )
         if joueur and joueur.memo:
             lignes.append("  Note : " + joueur.memo)
-        styles = joueur.styles if joueur else {}
-        if not styles:
-            lignes.append("  Style : " + self._c("pas encore noté", "info"))
-        for auteur, note in sorted(styles.items(), key=lambda a: a[0] != self.carnet.auteur):
+        traits = joueur.traits if joueur else {}
+        if not traits:
+            lignes.append("  Trait : " + self._c("pas encore noté", "info"))
+        for auteur, note in sorted(traits.items(), key=lambda a: a[0] != self.carnet.auteur):
             qui = "toi" if auteur == self.carnet.auteur else auteur
-            lignes.append(f"  Style ({self._c(qui, 'auteur')}) : " + self._c(decorer(note.texte), "style"))
+            lignes.append(f"  Trait ({self._c(qui, 'auteur')}) : " + self._c(decorer(note.texte), "trait"))
         return "\n".join(lignes)
 
     def nom_canonique(self, nom: str) -> str:
@@ -222,7 +222,7 @@ class App:
         return self._fiche(nom, self.carnet.trouver(nom), historique=True)
 
     def modifier(self, nom: str) -> str:
-        """Fiche d'un joueur déjà croisé, avant de changer son nom, son style ou sa note : ne compte rien."""
+        """Fiche d'un joueur déjà croisé, avant de changer son nom, son trait ou sa note : ne compte rien."""
         nom = self.nom_canonique(nom)
         joueur = self.carnet.trouver(nom)
         if joueur is None:
@@ -260,9 +260,9 @@ class App:
             return titre + "\n  " + self._c("Aucun joueur ne correspond.", "info")
         return titre + "\n" + "\n".join("  " + l for l in lignes)
 
-    def mon_style(self, nom: str) -> str:
+    def mon_trait(self, nom: str) -> str:
         joueur = self.carnet.trouver(nom)
-        note = joueur.styles.get(self.carnet.auteur) if joueur else None
+        note = joueur.traits.get(self.carnet.auteur) if joueur else None
         return note.texte if note else ""
 
     def mon_memo(self, nom: str) -> str:
@@ -279,9 +279,15 @@ class App:
             return self._c(f"Note enregistrée pour {nom}.", "ok")
         return self._c(f"Note effacée pour {nom}.", "ok")
 
-    def noter(self, nom: str, texte: str) -> None:
-        self.carnet.noter(self.nom_canonique(nom), texte, maintenant=self.maintenant())
+    def noter(self, nom: str, texte: str) -> str:
+        """Enregistre le trait (mots-clés seulement, ADR 0017). Renvoie un message d'erreur, ou « » si tout va bien."""
+        canonique, inconnus = valider(texte)
+        if inconnus:
+            mots = ", ".join(f"« {m} »" for m in inconnus)
+            return self._c(f"Trait refusé : {mots} inconnu(s). ", "erreur") + "\n" + aide_traits()
+        self.carnet.noter(self.nom_canonique(nom), canonique, maintenant=self.maintenant())
         self.carnet.sauver(self.chemin_carnet)
+        return ""
 
     def supprimer(self, nom: str) -> str:
         joueur = self.carnet.supprimer(nom.strip())
@@ -313,18 +319,18 @@ class App:
         return self._c(f"{ancien} renommé en {nouveau}.", "ok")
 
     def liste(self) -> str:
-        joueurs = [j for j in self.carnet.recents() if j.rencontres or j.styles or j.memo]
+        joueurs = [j for j in self.carnet.recents() if j.rencontres or j.traits or j.memo]
         if not joueurs:
             return "Aucun joueur dans ton carnet pour l'instant."
         largeur = min(max(len(j.nom) for j in joueurs), 30)
         lignes = [f"{len(joueurs)} joueur(s) :"]
         for j in joueurs:
-            styles = self._c(" | ", "info").join(
+            traits = self._c(" | ", "info").join(
                 self._c("toi" if a == self.carnet.auteur else a, "auteur") + ": " + decorer(n.texte)
-                for a, n in j.styles.items()
+                for a, n in j.traits.items()
             )
             vu = f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "jamais croisé"
-            lignes.append(f"  {self._c(f'{j.nom:<{largeur}}', 'nom')}  {self._c(f'{vu:<16}', 'info')}  {styles}")
+            lignes.append(f"  {self._c(f'{j.nom:<{largeur}}', 'nom')}  {self._c(f'{vu:<16}', 'info')}  {traits}")
         return "\n".join(lignes)
 
     def exporter(self, chemin: str) -> str:

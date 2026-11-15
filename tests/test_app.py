@@ -47,15 +47,15 @@ def test_croiser_un_joueur_du_top(tmp_path):
     assert (tmp_path / "carnet.json").exists()
 
 
-def test_croiser_deux_fois_affiche_le_compteur_et_le_style(tmp_path):
+def test_croiser_deux_fois_affiche_le_compteur_et_le_trait(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
-    app.noter("Bob", "rush")
+    app.noter("Bob", "noob")
     app.maintenant = lambda: "2026-11-15T21:00"  # plus de 30 minutes après
     texte = app.croiser("bob")
     assert "1v1 : hors top 100" in texte
     assert "Croisé 2 fois" in texte
-    assert "Style (toi) : rush" in texte
+    assert "Trait (toi) : 🐣 noob" in texte
 
 
 def test_voir_ne_compte_pas_de_rencontre(tmp_path):
@@ -74,14 +74,14 @@ def test_liste(tmp_path):
     app = nouvelle_app(tmp_path)
     assert "Aucun joueur" in app.liste()
     app.croiser("Bob")
-    app.noter("Bob", "rush")
-    assert "Bob" in app.liste() and "rush" in app.liste()
+    app.noter("Bob", "noob")
+    assert "Bob" in app.liste() and "noob" in app.liste()
 
 
 def test_export_puis_import_chez_le_pote(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
-    app.noter("Bob", "rush")
+    app.noter("Bob", "noob")
     fichier = tmp_path / "antho.json"
     assert "exporté" in app.exporter(str(fichier))
 
@@ -93,7 +93,7 @@ def test_export_puis_import_chez_le_pote(tmp_path):
     )
     texte = pote.importer(str(fichier))
     assert "1 joueur(s) ajouté(s)" in texte
-    assert pote.carnet.trouver("Bob").styles["Antho"].texte == "rush"
+    assert pote.carnet.trouver("Bob").traits["Antho"].texte == "noob"
 
 
 def test_import_fichier_absent(tmp_path):
@@ -117,13 +117,13 @@ def test_fiche_et_liste_affichent_les_emojis(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     app.noter("Bob", "aggressive, noob")
-    assert "Style (toi) : 🔥 aggressive, 🐣 noob" in app.voir("Bob")
+    assert "Trait (toi) : 🔥 aggressive, 🐣 noob" in app.voir("Bob")
     assert "🔥 aggressive" in app.liste()
-    assert app.carnet.trouver("Bob").styles["Antho"].texte == "aggressive, noob"  # stocké sans emoji
+    assert app.carnet.trouver("Bob").traits["Antho"].texte == "aggressive, noob"  # stocké sans emoji
 
 
-def test_analyser_styles():
-    assert analyser("styles") == ("styles", "")
+def test_analyser_traits():
+    assert analyser("traits") == ("traits", "")
 
 
 def test_import_fichier_qui_n_est_pas_un_carnet(tmp_path):
@@ -231,14 +231,14 @@ def test_supprimer(tmp_path):
     assert "n'est pas dans ton carnet" in app.supprimer("Bob")
 
 
-def test_renommer_garde_rencontres_et_styles(tmp_path):
+def test_renommer_garde_rencontres_et_traits(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Pizza")
-    app.noter("Pizza", "rush")
+    app.noter("Pizza", "noob")
     assert "renommé" in app.renommer("pizza", "[IMP] Pizza")
     assert app.carnet.trouver("Pizza") is None
     joueur = app.carnet.trouver("[IMP] Pizza")
-    assert (joueur.nom, joueur.rencontres, joueur.styles["Antho"].texte) == ("[IMP] Pizza", 1, "rush")
+    assert (joueur.nom, joueur.rencontres, joueur.traits["Antho"].texte) == ("[IMP] Pizza", 1, "noob")
     assert "[IMP] Pizza" in (tmp_path / "carnet.json").read_text(encoding="utf-8")
 
 
@@ -390,3 +390,18 @@ def test_modifier_joueur_inconnu(tmp_path):
     app = nouvelle_app(tmp_path)
     assert "pas dans ton carnet" in app.modifier("Zorglub")
     assert app.carnet.trouver("Zorglub") is None
+
+
+def test_noter_refuse_un_trait_hors_liste_sans_rien_enregistrer(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    erreur = app.noter("Bob", "rush archers")
+    assert "rush" in erreur and "aggressive" in erreur and "pro" in erreur
+    assert app.mon_trait("Bob") == ""
+
+
+def test_noter_enregistre_les_mots_cles_normalises(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    assert app.noter("Bob", "agressif, Defense") == ""
+    assert app.mon_trait("Bob") == "aggressive, defence"

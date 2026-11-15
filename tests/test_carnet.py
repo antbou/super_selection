@@ -10,13 +10,13 @@ def test_croiser_cree_puis_incremente():
     assert len(c.joueurs) == 1
 
 
-def test_noter_et_effacer_son_style():
+def test_noter_et_effacer_son_trait():
     c = Carnet(auteur="Antho")
     c.croiser("Pizza", quand="2026-11-10")
     c.noter("Pizza", "agressif, rush archers", maintenant="2026-11-10T20:00")
-    assert c.trouver("PIZZA").styles["Antho"].texte == "agressif, rush archers"
+    assert c.trouver("PIZZA").traits["Antho"].texte == "agressif, rush archers"
     c.noter("Pizza", "", maintenant="2026-11-10T21:00")
-    assert "Antho" not in c.trouver("Pizza").styles
+    assert "Antho" not in c.trouver("Pizza").traits
 
 
 def test_recents_du_plus_recent_au_plus_ancien():
@@ -35,7 +35,7 @@ def test_sauver_puis_charger(tmp_path):
     c.sauver(chemin)
     relu = Carnet.charger(chemin)
     assert relu.auteur == "Antho"
-    assert relu.trouver("妮蔻").styles["Antho"].texte == "défensif"
+    assert relu.trouver("妮蔻").traits["Antho"].texte == "défensif"
     assert "妮蔻" in chemin.read_text(encoding="utf-8")
 
 
@@ -56,11 +56,11 @@ def test_fusion_ajoute_les_joueurs_et_notes_du_pote():
     assert (bilan.joueurs_ajoutes, bilan.notes_ajoutees, bilan.notes_maj) == (1, 2, 0)
     pizza = moi.trouver("Pizza")
     assert pizza.rencontres == 1  # seules mes rencontres comptent
-    assert pizza.styles["Antho"].texte == "agressif"
-    assert pizza.styles["Kevin"].texte == "spam cavalerie"
+    assert pizza.traits["Antho"].texte == "agressif"
+    assert pizza.traits["Kevin"].texte == "spam cavalerie"
     ram = moi.trouver("ram pam")
     assert ram.rencontres == 0
-    assert ram.styles["Kevin"].texte == "passif"
+    assert ram.traits["Kevin"].texte == "passif"
 
 
 def test_fusion_ne_touche_jamais_mes_notes():
@@ -71,12 +71,12 @@ def test_fusion_ne_touche_jamais_mes_notes():
     pote = Carnet(auteur="Kevin")
     pote.croiser("Pizza", quand="2026-11-10")
     pote.noter("Pizza", "x", maintenant="2026-11-10T20:00")
-    pote.trouver("Pizza").styles["Antho"] = pote.trouver("Pizza").styles["Kevin"].__class__(
+    pote.trouver("Pizza").traits["Antho"] = pote.trouver("Pizza").traits["Kevin"].__class__(
         texte="falsifié", maj="2099-01-01T00:00"
     )
 
     moi.fusionner(pote)
-    assert moi.trouver("Pizza").styles["Antho"].texte == "agressif"
+    assert moi.trouver("Pizza").traits["Antho"].texte == "agressif"
 
 
 def test_reimport_met_a_jour_seulement_si_plus_recent():
@@ -91,11 +91,11 @@ def test_reimport_met_a_jour_seulement_si_plus_recent():
     v2.noter("Pizza", "en fait agressif", maintenant="2026-11-12T20:00")
     bilan = moi.fusionner(v2)
     assert bilan.notes_maj == 1
-    assert moi.trouver("Pizza").styles["Kevin"].texte == "en fait agressif"
+    assert moi.trouver("Pizza").traits["Kevin"].texte == "en fait agressif"
 
     bilan = moi.fusionner(v1)  # ancienne version : ignorée
     assert (bilan.notes_ajoutees, bilan.notes_maj) == (0, 0)
-    assert moi.trouver("Pizza").styles["Kevin"].texte == "en fait agressif"
+    assert moi.trouver("Pizza").traits["Kevin"].texte == "en fait agressif"
 
 
 def test_fusion_ignore_les_joueurs_sans_note():
@@ -159,7 +159,7 @@ def test_message_d_erreur_situe_le_joueur():
 def test_depuis_dict_valeurs_par_defaut():
     c = Carnet.depuis_dict({"joueurs": [{"nom": "Bob", "styles": {"K": {"texte": "rush"}}}]})
     assert c.auteur == "?"
-    assert c.trouver("Bob").styles["K"].maj == ""
+    assert c.trouver("Bob").traits["K"].maj == ""
     assert c.trouver("Bob").derniere is None
 
 
@@ -172,7 +172,7 @@ def test_depuis_dict_nettoie_les_textes():
     }
     c = Carnet.depuis_dict(brut)
     assert c.auteur == "Ke[2Jvin"
-    assert c.trouver("Bob").styles["Kx"].texte == "rush"
+    assert c.trouver("Bob").traits["Kx"].texte == "rush"
 
 
 def test_charger_json_casse(tmp_path):

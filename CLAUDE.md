@@ -23,7 +23,7 @@ Décisions : `docs/adr/` (une décision par fichier, numérotée). Les lire avan
 
 - TDD : écrire le test d'abord (`tests/`), le réseau est toujours injecté (`Fetcher`), jamais appelé en test.
 - Doit marcher sous Windows : `pathlib`, `encoding="utf-8"` partout, pas de commande shell, pas de dépendance POSIX.
-- Rester simple : l'utilisateur veut taper un nom, voir le rang, noter un style. Pas de mode 2v2 spécial.
+- Rester simple : l'utilisateur veut taper un nom, voir le rang, noter un trait. Pas de mode 2v2 spécial.
 - Commandes en anglais (`show`, `list`, `help`…), tous les messages en français.
 - Installation Windows = une ligne (`install.ps1`, garder ce script en ASCII). Ne rien ajouter qui demande Python ou Git à l'utilisateur.
 - Les notes du propriétaire ne sont jamais écrasées par un import.

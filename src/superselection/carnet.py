@@ -1,4 +1,4 @@
-"""Carnet : les adversaires déjà croisés, leurs rencontres et les styles notés."""
+"""Carnet : les adversaires déjà croisés, leurs rencontres et les traits notés."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class Joueur:
     nom: str
     rencontres: int = 0  # seulement les rencontres du propriétaire du carnet
     derniere: str | None = None  # date ISO de la dernière rencontre
-    styles: dict = field(default_factory=dict)  # auteur -> Note
+    traits: dict = field(default_factory=dict)  # auteur -> Note
     memo: str = ""  # note perso du propriétaire : jamais exportée ni fusionnée
 
 
@@ -86,7 +86,7 @@ class Carnet:
         return nombre
 
     def renommer(self, ancien: str, nouveau: str) -> None:
-        """Change le nom d'un joueur en gardant ses rencontres et ses styles.
+        """Change le nom d'un joueur en gardant ses rencontres et ses traits.
 
         Lève KeyError si `ancien` est absent, ValueError si `nouveau` désigne un autre joueur.
         """
@@ -98,13 +98,13 @@ class Carnet:
         self._joueurs[nouveau.casefold()] = joueur
 
     def noter(self, nom: str, texte: str, maintenant: str) -> None:
-        """Remplace mon style pour ce joueur ; un texte vide l'efface."""
+        """Remplace mon trait pour ce joueur ; un texte vide l'efface."""
         joueur = self._obtenir(nom)
         texte = texte.strip()
         if texte:
-            joueur.styles[self.auteur] = Note(texte=texte, maj=maintenant)
+            joueur.traits[self.auteur] = Note(texte=texte, maj=maintenant)
         else:
-            joueur.styles.pop(self.auteur, None)
+            joueur.traits.pop(self.auteur, None)
 
     def memoriser(self, nom: str, texte: str) -> None:
         """Remplace ma note perso pour ce joueur ; un texte vide l'efface (sans créer le joueur)."""
@@ -126,21 +126,21 @@ class Carnet:
         bilan = Bilan()
         moi = self.auteur.casefold()
         for sien in autre.joueurs:
-            if not any(a.casefold() != moi for a in sien.styles):
+            if not any(a.casefold() != moi for a in sien.traits):
                 continue  # rien d'utile à récupérer sur ce joueur
             mien = self.trouver(sien.nom)
             if mien is None:
                 mien = self._obtenir(sien.nom)
                 bilan.joueurs_ajoutes += 1
-            for auteur, note in sien.styles.items():
+            for auteur, note in sien.traits.items():
                 if auteur.casefold() == moi:
                     continue
-                actuelle = mien.styles.get(auteur)
+                actuelle = mien.traits.get(auteur)
                 if actuelle is None:
-                    mien.styles[auteur] = Note(note.texte, note.maj)
+                    mien.traits[auteur] = Note(note.texte, note.maj)
                     bilan.notes_ajoutees += 1
                 elif note.maj > actuelle.maj and note.texte != actuelle.texte:
-                    mien.styles[auteur] = Note(note.texte, note.maj)
+                    mien.traits[auteur] = Note(note.texte, note.maj)
                     bilan.notes_maj += 1
         return bilan
 
@@ -155,7 +155,7 @@ class Carnet:
                     "nom": j.nom,
                     "rencontres": j.rencontres,
                     "derniere": j.derniere,
-                    "styles": {a: {"texte": n.texte, "maj": n.maj} for a, n in j.styles.items()},
+                    "styles": {a: {"texte": n.texte, "maj": n.maj} for a, n in j.traits.items()},
                     **({"memo": j.memo} if avec_memos and j.memo else {}),
                 }
                 for j in self.recents()
@@ -224,21 +224,21 @@ def _lire_joueur(numero: int, brut) -> Joueur:
     ):
         raise CarnetInvalide(f"{lieu} : « derniere » doit être une date AAAA-MM-JJ ou null")
 
-    brut_styles = brut.get("styles", {})
-    if not isinstance(brut_styles, dict):
+    brut_traits = brut.get("styles", {})
+    if not isinstance(brut_traits, dict):
         raise CarnetInvalide(f"{lieu} : « styles » doit être un objet")
-    styles = {}
-    for auteur, note in brut_styles.items():
+    traits = {}
+    for auteur, note in brut_traits.items():
         if not isinstance(note, dict) or not isinstance(note.get("texte"), str):
-            raise CarnetInvalide(f"{lieu} : le style de « {auteur} » doit avoir un « texte »")
+            raise CarnetInvalide(f"{lieu} : le trait de « {auteur} » doit avoir un « texte »")
         maj = note.get("maj", "")
         if not isinstance(maj, str):
-            raise CarnetInvalide(f"{lieu} : « maj » du style de « {auteur} » doit être un texte")
-        styles[sans_controle(auteur).strip()] = Note(sans_controle(note["texte"]).strip(), maj)
+            raise CarnetInvalide(f"{lieu} : « maj » du trait de « {auteur} » doit être un texte")
+        traits[sans_controle(auteur).strip()] = Note(sans_controle(note["texte"]).strip(), maj)
     memo = brut.get("memo", "")
     if not isinstance(memo, str):
         raise CarnetInvalide(f"{lieu} : « memo » doit être un texte")
-    return Joueur(nom=nom, rencontres=rencontres, derniere=derniere, styles=styles, memo=sans_controle(memo).strip())
+    return Joueur(nom=nom, rencontres=rencontres, derniere=derniere, traits=traits, memo=sans_controle(memo).strip())
 
 
 def _trop_proche(derniere: str | None, quand: str) -> bool:

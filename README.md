@@ -6,9 +6,9 @@ son nom et l'outil te dit :
 - s'il est dans le **top 100** (1v1 et 2v2, saison en cours, d'après
   [ws-stats.pl](https://ws-stats.pl/leaderboard)) ;
 - si tu l'as **déjà croisé**, combien de fois et quand ;
-- le **style de jeu** que toi (et tes potes) avez noté.
+- le **profil de jeu** que toi (et tes potes) avez noté.
 
-Puis tu notes son style en une ligne. C'est tout.
+Puis tu notes son trait en une ligne. C'est tout.
 
 ## Installation
 
@@ -53,22 +53,22 @@ adversaire > marme⇥            ← Tab complète : Marmelaaada  (1v1 #1)
 Marmelaaada
   1v1 : #1 (758 pts)   ·   2v2 : hors top 100
   Première rencontre.
-  Style : pas encore noté
-  Son style ? (Tab = mots-clés, Entrée = passer) > aggressive, rush archers
-  Style enregistré.
+  Trait : pas encore noté
+  Son trait ? (Tab = mots-clés, Entrée = passer) > aggressive, tryhard
+  Trait enregistré.
 
 adversaire > Bob
 Bob
   1v1 : hors top 100   ·   2v2 : hors top 100
   Croisé 3 fois — dernière fois le 12/11/2026
-  Style (toi) : 🛡️ defence, 😤 tryhard
-  Style (Kevin) : 🐣 noob, spam cavalerie
-  Nouveau style ? (Tab = mots-clés, Entrée = garder, - = effacer) >
+  Trait (toi) : 🛡️ defence, 😤 tryhard
+  Trait (Kevin) : 🐣 noob, spam cavalerie
+  Nouveau trait ? (Tab = mots-clés, Entrée = garder, - = effacer) >
 ```
 
 Chaque nom tapé compte comme une rencontre, sauf si tu l'as déjà tapé il y a moins de
 30 minutes (pour relire une note en pleine partie). Pour seulement regarder une fiche
-sans compter de rencontre : `show Bob`. Pour changer son style, ta note ou son nom à la
+sans compter de rencontre : `show Bob`. Pour changer son trait, ta note ou son nom à la
 fin d'une partie (sans recompter) : `edit Bob`.
 
 Un nom inconnu du top 100 et du carnet est signalé « Nouveau joueur », avec les noms
@@ -78,12 +78,12 @@ proches s'il y en a : une faute de frappe se corrige avec `delete` ou `edit` (qu
 
 | Commande           | Ce que ça fait                                   | Exemple              |
 |--------------------|--------------------------------------------------|----------------------|
-| `<nom>`            | croiser un joueur, puis noter son style          | `[IMP] Pizza`        |
+| `<nom>`            | croiser un joueur, puis noter son trait          | `[IMP] Pizza`        |
 | `show <nom>`       | voir sa fiche sans compter de rencontre          | `show Unloukee`      |
 | `list`             | tous les joueurs déjà croisés, du plus récent    | `list`               |
 | `delete <nom>`     | retirer un joueur du carnet (confirmation)       | `delete Pizza`       |
 | `edit <nom>`       | champs pré-remplis, sans compter            | `edit Pizza`         |
-| `styles`           | les mots-clés de style et leurs emojis           | `styles`             |
+| `traits`           | les mots-clés de trait et leurs emojis           | `traits`             |
 | `export <fichier>` | écrire ton carnet dans un fichier pour un pote   | `export antho.json`  |
 | `import <fichier>` | fusionner le carnet d'un pote dans le tien       | `import kevin.json`  |
 | `refresh`          | recharger le classement                          | `refresh`            |
@@ -92,10 +92,10 @@ proches s'il y en a : une faute de frappe se corrige avec `delete` ou `edit` (qu
 | `help`             | afficher l'aide                                  | `help`               |
 | `quit`             | sortir (ou `q`, `exit`, Ctrl+D)                  | `q`                  |
 
-### Styles et emojis
+### Traits et emojis
 
-Le style est un texte libre. Cinq mots-clés reçoivent un emoji à l'affichage, et Tab les
-complète quand tu notes un style :
+Le trait se choisit parmi cinq mots-clés, chacun avec son emoji. Ils s'affichent dès que tu
+notes un trait (Tab ou ↓ pour choisir) :
 
 | Emoji | Mot-clé      | Sens                                   |
 |-------|--------------|----------------------------------------|
@@ -105,9 +105,10 @@ complète quand tu notes un style :
 | 😤    | `tryhard`    | joue à fond, ne lâche rien             |
 | 👑    | `pro`        | très fort                              |
 
-Tu peux en mettre plusieurs et ajouter du texte : `aggressive, tryhard, rush archers`
-s'affiche `🔥 aggressive, 😤 tryhard, rush archers`. Les variantes marchent aussi
-(`aggresive`, `agressif`, `defense`, `défense`, `def`, `nul`…).
+Tu peux en mettre plusieurs : `aggressive, tryhard` s'affiche `🔥 aggressive, 😤 tryhard`.
+Les variantes marchent aussi (`agressif`, `defense`, `défense`, `def`, `nul`…) et sont
+enregistrées sous le mot conseillé. Un autre mot est refusé : le détail (unités, stratégie)
+va dans ta note perso. Les traits déjà notés en texte libre restent affichés tels quels.
 
 Un joueur s'appelle comme une commande ? Utilise `player list`.
 
@@ -143,7 +144,7 @@ superselection "[IMP] Pizza"
 2. Lui : `import antho.json` (astuce Windows : tape `import `, puis glisse le fichier
    dans la fenêtre pour coller son chemin).
 
-La fusion ajoute les joueurs qu'il ne connaît pas et les styles que tu as notés,
+La fusion ajoute les joueurs qu'il ne connaît pas et les traits que tu as notés,
 **signés de ton pseudo**. Elle ne touche jamais à ses propres notes. Le compteur
 « croisé N fois » ne compte que ses rencontres à lui. Si tu lui renvoies plus
 tard une version plus récente de ton carnet, tes notes sont mises à jour chez lui.

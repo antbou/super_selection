@@ -18,7 +18,7 @@ from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet, CarnetInvalide
 from .classement import MODES, charger_classement, charger_saison, fetch_http
 from .couleurs import colorer_aide, peindre, sans_couleur
-from .styles import aide_styles, tags_commencant_par
+from .traits import aide_traits, tags_commencant_par
 from .texte import sans_controle
 from .version import etat_version, fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
 
@@ -62,13 +62,21 @@ def c(texte: str, role: str) -> str:
     return peindre(texte, role, _COULEUR)
 
 
+def _noter(app: App, nom: str, reponse: str) -> None:
+    erreur = app.noter(nom, reponse)
+    if erreur:
+        afficher("  " + erreur.replace("\n", "\n  "))
+    else:
+        afficher("  " + c("Trait enregistré." if reponse else "Trait effacé.", "ok"))
+
+
 def _questions(app: App, nom: str, demander: Demander) -> None:
-    """Demande le style puis la note perso ; Ctrl+C / Ctrl+D : on garde tout."""
-    actuel = app.mon_style(nom)
+    """Demande le trait puis la note perso ; Ctrl+C / Ctrl+D : on garde tout."""
+    actuel = app.mon_trait(nom)
     question = (
-        "  Nouveau style ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
+        "  Nouveau trait ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
         if actuel
-        else "  Son style ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
+        else "  Son trait ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
     )
     try:
         reponse = demander(question, "").strip()
@@ -76,10 +84,9 @@ def _questions(app: App, nom: str, demander: Demander) -> None:
         return
     if reponse == "-" and actuel:
         app.noter(nom, "")
-        afficher("  " + c("Style effacé.", "ok"))
+        afficher("  " + c("Trait effacé.", "ok"))
     elif reponse and reponse != "-" and reponse != actuel:
-        app.noter(nom, reponse)
-        afficher("  " + c("Style enregistré.", "ok"))
+        _noter(app, nom, reponse)
     memo = app.mon_memo(nom)
     question = (
         "  Nouvelle note ? " + c("(texte privé, Entrée = garder, - = effacer)", "info") + " > "
@@ -97,7 +104,7 @@ def _questions(app: App, nom: str, demander: Demander) -> None:
 
 
 def _editer(app: App, nom: str, demander: Demander) -> None:
-    """Fiche puis nom, style et note déjà remplis : Entrée garde, on corrige sur place, vide = effacer."""
+    """Fiche puis nom, trait et note déjà remplis : Entrée garde, on corrige sur place, vide = effacer."""
     afficher(app.modifier(nom))
     if app.carnet.trouver(nom) is None:
         return
@@ -107,11 +114,10 @@ def _editer(app: App, nom: str, demander: Demander) -> None:
             afficher("  " + app.renommer(nom, nouveau))
             if (joueur := app.carnet.trouver(nouveau)) is not None and app.carnet.trouver(nom) is None:
                 nom = joueur.nom
-        style = app.mon_style(nom)
-        reponse = demander("  Style > ", style).strip()
-        if reponse != style:
-            app.noter(nom, reponse)
-            afficher("  " + c("Style enregistré." if reponse else "Style effacé.", "ok"))
+        trait = app.mon_trait(nom)
+        reponse = demander("  Trait > ", trait).strip()
+        if reponse != trait:
+            _noter(app, nom, reponse)
         memo = app.mon_memo(nom)
         reponse = demander("  Note  > ", memo).strip()
         if reponse != memo:
@@ -129,8 +135,8 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         return False
     if commande == "help":
         afficher(colorer_aide(AIDE) if _COULEUR else AIDE)
-    elif commande == "styles":
-        afficher(aide_styles())
+    elif commande == "traits":
+        afficher(aide_traits())
     elif commande == "list":
         afficher(app.liste())
     elif commande == "delete":
@@ -140,7 +146,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             afficher(app.supprimer(argument))
         else:
             question = (
-                f"  Supprimer {joueur.nom} ({joueur.rencontres} rencontre(s), {len(joueur.styles)} style(s)) ? "
+                f"  Supprimer {joueur.nom} ({joueur.rencontres} rencontre(s), {len(joueur.traits)} trait(s)) ? "
                 + c("(o = oui, Entrée = non)", "info") + " > "
             )
             try:
@@ -154,7 +160,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             afficher(c("Le carnet est déjà vide.", "info"))
         else:
             question = (
-                c(f"  Supprimer TOUT le carnet ({nombre} joueur(s), rencontres et styles) ? Irréversible. ", "erreur")
+                c(f"  Supprimer TOUT le carnet ({nombre} joueur(s), rencontres et traits) ? Irréversible. ", "erreur")
                 + c("(tape « oui », Entrée = non)", "info") + " > "
             )
             try:
@@ -324,17 +330,15 @@ def _session(app: App):
                             yield Completion(c, start_position=-len(texte), display_meta="commande")
                 yield from self._noms(texte)
 
-    class CompleteurStyle(Completer):
-        """Complète le dernier mot avec les mots-clés de style (aggressive, defence…)."""
+    class CompleteurTrait(Completer):
+        """Complète le dernier mot avec les mots-clés de trait (aggressive, defence…)."""
 
         def get_completions(self, document, complete_event):
             mot = re.search(r"\w*$", document.text_before_cursor).group(0)
-            if not mot:
-                return
-            for tag in tags_commencant_par(mot):
+            for tag in tags_commencant_par(mot):  # mot vide : les cinq, sans taper de lettre
                 yield Completion(tag.nom, start_position=-len(mot), display_meta=f"{tag.emoji} {tag.sens}")
 
-    return PromptSession(completer=Completeur(), complete_while_typing=True), CompleteurStyle()
+    return PromptSession(completer=Completeur(), complete_while_typing=True), CompleteurTrait()
 
 
 def _attendre_fermeture() -> None:
@@ -449,10 +453,19 @@ def _principal(argv: list) -> None:
     if interactif:
         from prompt_toolkit.formatted_text import ANSI
 
-        session, completeur_style = _session(app)
+        session, completeur_trait = _session(app)
 
         def demander(question: str, defaut: str) -> str:
-            return session.prompt(ANSI(question), default=defaut, completer=completeur_style)
+            if "trait" not in question.casefold():  # nom, note perso : pas de mots-clés
+                return session.prompt(ANSI(question), default=defaut)
+            # Les cinq traits s'affichent dès l'ouverture, sans taper la première lettre.
+            return session.prompt(
+                ANSI(question),
+                default=defaut,
+                completer=completeur_trait,
+                complete_while_typing=True,
+                pre_run=lambda: session.app.current_buffer.start_completion(select_first=False),
+            )
 
     else:
 

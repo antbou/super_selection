@@ -74,19 +74,19 @@ def test_exception_inattendue_ecrit_erreur_log(isole, monkeypatch, capsys):
     assert str(journal) in sortie_texte
 
 
-# --- executer : saisie du style ------------------------------------------------
+# --- executer : saisie du trait ------------------------------------------------
 
 from test_app import nouvelle_app
 
 
-def _style(app, nom):
+def _trait(app, nom):
     joueur = app.carnet.trouver(nom)
-    note = joueur.styles.get("Antho") if joueur else None
+    note = joueur.traits.get("Antho") if joueur else None
     return note.texte if note else None
 
 
 @pytest.mark.parametrize("erreur", [KeyboardInterrupt, EOFError])
-def test_ctrl_c_ou_ctrl_d_sur_le_style_garde_tout(tmp_path, erreur):
+def test_ctrl_c_ou_ctrl_d_sur_le_trait_garde_tout(tmp_path, erreur):
     app = nouvelle_app(tmp_path)
 
     def demander(question, defaut):
@@ -94,40 +94,40 @@ def test_ctrl_c_ou_ctrl_d_sur_le_style_garde_tout(tmp_path, erreur):
 
     assert cli.executer(app, "Bob", demander) is True
     assert app.carnet.trouver("Bob").rencontres == 1
-    assert _style(app, "Bob") is None
+    assert _trait(app, "Bob") is None
 
 
-def test_ctrl_c_sur_le_style_garde_le_style_actuel(tmp_path):
+def test_ctrl_c_sur_le_trait_garde_le_trait_actuel(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
-    app.noter("Bob", "rush")
+    app.noter("Bob", "noob")
 
     def demander(question, defaut):
         raise KeyboardInterrupt
 
     assert cli.executer(app, "Bob", demander) is True
-    assert _style(app, "Bob") == "rush"
+    assert _trait(app, "Bob") == "noob"
 
 
-def test_style_saisi_est_enregistre(tmp_path):
+def test_trait_saisi_est_enregistre(tmp_path):
     app = nouvelle_app(tmp_path)
-    cli.executer(app, "Bob", lambda q, d: "rush archers")
-    assert _style(app, "Bob") == "rush archers"
+    cli.executer(app, "Bob", lambda q, d: "noob, pro")
+    assert _trait(app, "Bob") == "noob, pro"
 
 
-def test_tiret_efface_le_style(tmp_path):
+def test_tiret_efface_le_trait(tmp_path):
     app = nouvelle_app(tmp_path)
-    cli.executer(app, "Bob", lambda q, d: "rush")
+    cli.executer(app, "Bob", lambda q, d: "noob")
     cli.executer(app, "Bob", lambda q, d: "-")
-    assert _style(app, "Bob") is None
+    assert _trait(app, "Bob") is None
 
 
-def test_reponse_vide_garde_le_style(tmp_path):
+def test_reponse_vide_garde_le_trait(tmp_path):
     app = nouvelle_app(tmp_path)
-    cli.executer(app, "Bob", lambda q, d: "rush")
+    cli.executer(app, "Bob", lambda q, d: "noob")
     app.maintenant = lambda: "2026-11-15T21:00"
     cli.executer(app, "Bob", lambda q, d: "")
-    assert _style(app, "Bob") == "rush"
+    assert _trait(app, "Bob") == "noob"
     assert app.carnet.trouver("Bob").rencontres == 2
 
 
@@ -204,11 +204,11 @@ def test_delete_ctrl_c_annule(tmp_path):
 def test_edit_renomme_puis_note_sans_recompter(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Pizza")
-    reponses = iter(["Pizza2", "rush", ""])  # nom, style, note
+    reponses = iter(["Pizza2", "noob", ""])  # nom, trait, note
     cli.executer(app, "edit Pizza", lambda q, d: next(reponses))
     assert app.carnet.trouver("Pizza") is None
     assert app.carnet.trouver("Pizza2").rencontres == 1
-    assert _style(app, "Pizza2") == "rush"
+    assert _trait(app, "Pizza2") == "noob"
 
 
 @pytest.mark.parametrize("reponse,reste", [("oui", 0), ("o", 2), ("", 2), ("non", 2)])
@@ -246,7 +246,7 @@ def test_reset_carnet_vide_ne_demande_rien(tmp_path, capsys):
 
 
 def _repondre(**reponses):
-    """demander() qui répond selon le mot-clé présent dans la question (Style / Note)."""
+    """demander() qui répond selon le mot-clé présent dans la question (Trait / Note)."""
     questions = []
 
     def demander(question, defaut):
@@ -262,9 +262,9 @@ def _repondre(**reponses):
 
 def test_croiser_propose_aussi_une_note(tmp_path):
     app = nouvelle_app(tmp_path)
-    demander = _repondre(style="rush", note="m'a insulté")
+    demander = _repondre(trait="noob", note="m'a insulté")
     cli.executer(app, "Bob", demander)
-    assert _style(app, "Bob") == "rush"
+    assert _trait(app, "Bob") == "noob"
     assert app.mon_memo("Bob") == "m'a insulté"
     assert len(demander.questions) == 2
 
@@ -285,10 +285,10 @@ def test_croiser_ctrl_c_sur_la_note_garde_tout(tmp_path):
     def demander(question, defaut):
         if "note" in question.casefold():
             raise KeyboardInterrupt
-        return "rush"
+        return "noob"
 
     cli.executer(app, "Bob", demander)
-    assert _style(app, "Bob") == "rush"
+    assert _trait(app, "Bob") == "noob"
     assert app.mon_memo("Bob") == "ancienne"
 
 
@@ -316,7 +316,7 @@ def test_edit_champs_prerempli_entree_garde_tout(tmp_path):
     assert vus == ["Bob", "aggressive", "joue le soir"]
     bob = app.carnet.trouver("Bob")
     assert bob.rencontres == 1 and bob.derniere == "2026-11-15T20:00"
-    assert _style(app, "Bob") == "aggressive" and bob.memo == "joue le soir"
+    assert _trait(app, "Bob") == "aggressive" and bob.memo == "joue le soir"
 
 
 def test_edit_corrige_sur_place_et_vide_efface(tmp_path):
@@ -324,9 +324,9 @@ def test_edit_corrige_sur_place_et_vide_efface(tmp_path):
     app.croiser("Bob")
     app.noter("Bob", "aggressive")
     app.memoriser("Bob", "joue le soir")
-    reponses = iter(["Bob", "aggressive, noob", ""])  # nom gardé, style corrigé, note vidée
+    reponses = iter(["Bob", "aggressive, noob", ""])  # nom gardé, trait corrigé, note vidée
     cli.executer(app, "edit Bob", lambda q, d: next(reponses))
-    assert _style(app, "Bob") == "aggressive, noob"
+    assert _trait(app, "Bob") == "aggressive, noob"
     assert app.carnet.trouver("Bob").memo == ""
 
 
@@ -334,3 +334,21 @@ def test_edit_joueur_inconnu_ne_pose_aucune_question(tmp_path):
     app = nouvelle_app(tmp_path)
     assert cli.executer(app, "edit Zorglub", lambda q, d: pytest.fail("pas de question")) is True
     assert app.carnet.trouver("Zorglub") is None
+
+
+def test_trait_hors_liste_est_refuse_et_signale(tmp_path, capsys):
+    app = nouvelle_app(tmp_path)
+    cli.executer(app, "Bob", lambda q, d: "rush archers")
+    sortie = capsys.readouterr().out
+    assert "rush" in sortie and "Trait enregistré" not in sortie
+    assert _trait(app, "Bob") is None
+
+
+def test_traits_proposes_des_le_debut_sans_taper_de_lettre(tmp_path):
+    from prompt_toolkit.document import Document
+
+    _, completeur_trait = cli._session(nouvelle_app(tmp_path))
+    propositions = [c.text for c in completeur_trait.get_completions(Document(""), None)]
+    assert propositions == ["aggressive", "defence", "noob", "tryhard", "pro"]
+    apres_virgule = [c.text for c in completeur_trait.get_completions(Document("noob, "), None)]
+    assert "pro" in apres_virgule

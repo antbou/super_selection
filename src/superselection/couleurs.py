@@ -13,7 +13,7 @@ ROLES = {
     "hors": "2",  # hors top 100 : grisé
     "info": "2",  # texte secondaire : grisé
     "auteur": "95",  # « toi », « Kevin » : magenta
-    "style": "97",  # texte du style : blanc
+    "trait": "97",  # texte du trait : blanc
     "commande": "93",  # commandes dans l'aide : jaune
     "ok": "92",  # confirmation : vert
     "erreur": "91",  # erreur : rouge

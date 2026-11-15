@@ -1,4 +1,4 @@
-from superselection.styles import TAGS, decorer, tags_commencant_par
+from superselection.traits import TAGS, decorer, tags_commencant_par, valider
 
 
 def test_decorer_ajoute_l_emoji_devant_chaque_mot_connu():
@@ -27,3 +27,14 @@ def test_tags_commencant_par():
     assert [t.nom for t in tags_commencant_par("ag")] == ["aggressive"]
     assert [t.nom for t in TAGS] == ["aggressive", "defence", "noob", "tryhard", "pro"]
     assert [t.nom for t in tags_commencant_par("")] == [t.nom for t in TAGS]
+
+
+def test_valider_normalise_les_variantes_et_dedoublonne():
+    assert valider("Agressif, defense, NOOB, aggro") == ("aggressive, defence, noob", [])
+    assert valider("pro tryhard") == ("pro, tryhard", [])
+    assert valider("") == ("", [])
+
+
+def test_valider_signale_les_mots_hors_liste():
+    assert valider("aggressive, rush archers") == ("aggressive", ["rush", "archers"])
+    assert valider("rush") == ("", ["rush"])
