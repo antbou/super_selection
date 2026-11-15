@@ -128,3 +128,24 @@ def test_reponse_vide_garde_le_style(tmp_path):
     cli.executer(app, "Bob", lambda q, d: "")
     assert _style(app, "Bob") == "rush"
     assert app.carnet.trouver("Bob").rencontres == 2
+
+
+def test_boucle_interactive_continue_si_l_enregistrement_echoue(isole, monkeypatch, capsys):
+    (isole / "carnet.json").write_text('{"auteur": "Antho", "joueurs": []}', encoding="utf-8")
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    lignes = iter(["Bob", "quit"])
+
+    class FausseSession:
+        def prompt(self, *args, **kwargs):
+            return next(lignes)
+
+    monkeypatch.setattr(cli, "_session", lambda app: (FausseSession(), None))
+
+    def sauver_impossible(self, chemin):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(cli.Carnet, "sauver", sauver_impossible)
+    cli.main([])
+    sortie = capsys.readouterr().out
+    assert "Impossible d'enregistrer le carnet" in sortie
+    assert "À plus !" in sortie

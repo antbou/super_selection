@@ -187,3 +187,38 @@ def test_charger_fichier_binaire(tmp_path):
     chemin.write_bytes(b"\xff\xfe\x00")
     with pytest.raises(CarnetInvalide):
         Carnet.charger(chemin)
+
+
+# --- enregistrement impossible -------------------------------------------------
+
+from superselection import carnet as module_carnet
+
+
+def test_sauver_reessaie_apres_un_permission_error(tmp_path, monkeypatch):
+    vrai_replace = module_carnet.os.replace
+    appels = []
+
+    def replace(src, dst):
+        appels.append(1)
+        if len(appels) <= 2:
+            raise PermissionError("verrouillé")
+        vrai_replace(src, dst)
+
+    monkeypatch.setattr(module_carnet.os, "replace", replace)
+    monkeypatch.setattr(module_carnet.time, "sleep", lambda s: None)
+    chemin = tmp_path / "c.json"
+    Carnet(auteur="Antho").sauver(chemin)
+    assert len(appels) == 3
+    assert Carnet.charger(chemin).auteur == "Antho"
+
+
+def test_sauver_abandonne_et_nettoie_le_tmp(tmp_path, monkeypatch):
+    def replace(src, dst):
+        raise PermissionError("verrouillé")
+
+    monkeypatch.setattr(module_carnet.os, "replace", replace)
+    monkeypatch.setattr(module_carnet.time, "sleep", lambda s: None)
+    chemin = tmp_path / "c.json"
+    with pytest.raises(PermissionError):
+        Carnet(auteur="Antho").sauver(chemin)
+    assert not (tmp_path / "c.json.tmp").exists()

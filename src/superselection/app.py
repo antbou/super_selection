@@ -178,7 +178,10 @@ class App:
         cible = Path(chemin).expanduser()
         if cible.suffix == "":
             cible = cible.with_suffix(".json")
-        self.carnet.sauver(cible)
+        try:
+            self.carnet.sauver(cible)
+        except OSError as erreur:
+            return self._c(f"Impossible d'écrire {cible} : {erreur.strerror or erreur}", "erreur")
         return f"Carnet exporté dans {cible.resolve()} — envoie ce fichier à ton pote."
 
     def importer(self, chemin: str) -> str:

@@ -315,8 +315,18 @@ def _principal(argv: list) -> None:
             continue
         except EOFError:
             break
-        if not executer(app, ligne, demander):
-            break
+        try:
+            if not executer(app, ligne, demander):
+                break
+        except OSError as erreur:
+            afficher(
+                c(
+                    f"Impossible d'enregistrer le carnet : {erreur.strerror or erreur}. "
+                    "Ferme le programme qui utilise ce fichier ; l'enregistrement sera "
+                    "refait à la prochaine saisie.",
+                    "erreur",
+                )
+            )
     afficher("À plus !")
 
 

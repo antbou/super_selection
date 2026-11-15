@@ -137,3 +137,11 @@ def test_import_fichier_qui_n_est_pas_un_carnet(tmp_path):
         assert str(fichier) in texte
     assert (tmp_path / "carnet.json").read_text(encoding="utf-8") == avant
     assert [j.nom for j in app.carnet.joueurs] == ["Bob"]
+
+
+def test_export_impossible_donne_un_message(tmp_path):
+    app = nouvelle_app(tmp_path)
+    fichier = tmp_path / "fichier"
+    fichier.write_text("x", encoding="utf-8")
+    texte = app.exporter(str(fichier / "sous" / "antho.json"))
+    assert "Impossible d'écrire" in texte

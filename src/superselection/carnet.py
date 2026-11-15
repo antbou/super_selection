@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -138,10 +139,21 @@ class Carnet:
         chemin = Path(chemin)
         chemin.parent.mkdir(parents=True, exist_ok=True)
         temporaire = chemin.with_name(chemin.name + ".tmp")
-        temporaire.write_text(
-            json.dumps(self.vers_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        os.replace(temporaire, chemin)
+        try:
+            temporaire.write_text(
+                json.dumps(self.vers_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            for essai in range(3):
+                try:
+                    os.replace(temporaire, chemin)
+                    return
+                except PermissionError:  # Windows : fichier ouvert ailleurs (Excel, antivirus…)
+                    if essai == 2:
+                        raise
+                    time.sleep(0.1)
+        except OSError:
+            temporaire.unlink(missing_ok=True)
+            raise
 
     @classmethod
     def charger(cls, chemin: Path) -> "Carnet":
