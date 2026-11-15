@@ -22,7 +22,8 @@ from .traits import aide_traits, tags_commencant_par
 from .texte import sans_controle
 from .version import etat_version, fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
 
-Demander = Callable[[str, str], str]  # (question, valeur par défaut) -> réponse
+# (question, valeur par défaut, genre) -> réponse ; genre : "trait" (mots-clés), "nom" (noms), "texte" (rien)
+Demander = Callable[..., str]
 
 
 def dossiers() -> tuple:
@@ -79,7 +80,7 @@ def _questions(app: App, nom: str, demander: Demander) -> None:
         else "  Son trait ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
     )
     try:
-        reponse = demander(question, "").strip()
+        reponse = demander(question, "", genre="trait").strip()
     except (KeyboardInterrupt, EOFError):
         return
     if reponse == "-" and actuel:
@@ -94,7 +95,7 @@ def _questions(app: App, nom: str, demander: Demander) -> None:
         else "  Une note ? " + c("(texte libre privé, Entrée = passer)", "info") + " > "
     )
     try:
-        reponse = demander(question, "").strip()
+        reponse = demander(question, "", genre="texte").strip()
     except (KeyboardInterrupt, EOFError):
         return
     if reponse == "-" and memo:
@@ -109,17 +110,17 @@ def _editer(app: App, nom: str, demander: Demander) -> None:
     if app.carnet.trouver(nom) is None:
         return
     try:
-        nouveau = demander("  Nom   > ", nom).strip()
+        nouveau = demander("  Nom   > ", nom, genre="nom").strip()
         if nouveau and nouveau != nom:
             afficher("  " + app.renommer(nom, nouveau))
             if (joueur := app.carnet.trouver(nouveau)) is not None and app.carnet.trouver(nom) is None:
                 nom = joueur.nom
         trait = app.mon_trait(nom)
-        reponse = demander("  Trait > ", trait).strip()
+        reponse = demander("  Trait > ", trait, genre="trait").strip()
         if reponse != trait:
             _noter(app, nom, reponse)
         memo = app.mon_memo(nom)
-        reponse = demander("  Note  > ", memo).strip()
+        reponse = demander("  Note  > ", memo, genre="texte").strip()
         if reponse != memo:
             afficher("  " + app.memoriser(nom, reponse))
     except (KeyboardInterrupt, EOFError):
@@ -150,7 +151,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
                 + c("(o = oui, Entrée = non)", "info") + " > "
             )
             try:
-                reponse = demander(question, "").strip().casefold()
+                reponse = demander(question, "", genre="texte").strip().casefold()
             except (KeyboardInterrupt, EOFError):
                 reponse = ""
             afficher(app.supprimer(argument) if reponse in ("o", "oui", "y", "yes") else c("Annulé.", "info"))
@@ -164,7 +165,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
                 + c("(tape « oui », Entrée = non)", "info") + " > "
             )
             try:
-                reponse = demander(question, "").strip().casefold()
+                reponse = demander(question, "", genre="texte").strip().casefold()
             except (KeyboardInterrupt, EOFError):
                 reponse = ""
             afficher(app.vider() if reponse == "oui" else c("Annulé.", "info"))
@@ -287,8 +288,8 @@ def _recherche_top(app: App, mode: str) -> None:
     application.run()
 
 
-def _session(app: App):
-    from prompt_toolkit import PromptSession
+def _completeurs(app: App):
+    """Les trois compléteurs : noms + commandes, noms seuls (champ « Nom » d'edit), mots-clés de trait."""
     from prompt_toolkit.completion import Completer, Completion, PathCompleter
     from prompt_toolkit.document import Document
 
@@ -338,7 +339,41 @@ def _session(app: App):
             for tag in tags_commencant_par(mot):  # mot vide : les cinq, sans taper de lettre
                 yield Completion(tag.nom, start_position=-len(mot), display_meta=f"{tag.emoji} {tag.sens}")
 
-    return PromptSession(completer=Completeur(), complete_while_typing=True), CompleteurTrait()
+    class CompleteurNom(Completer):
+        """Seulement des noms (pas de commandes) : on corrige un nom, on ne tape pas une ligne."""
+
+        def get_completions(self, document, complete_event):
+            yield from Completeur()._noms(document.text_before_cursor.lstrip())
+
+    return Completeur(), CompleteurNom(), CompleteurTrait()
+
+
+def _session(app: App):
+    """Renvoie (session principale, demander). Une session par genre de question, compléteur fixé
+    à la construction : prompt() garde sur la session tout ce qu'on lui passe."""
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.formatted_text import ANSI
+    from prompt_toolkit.history import DummyHistory
+
+    completeur, completeur_nom, completeur_trait = _completeurs(app)
+    principale = PromptSession(completer=completeur, complete_while_typing=True)
+    sessions = {
+        "trait": PromptSession(completer=completeur_trait, complete_while_typing=True, history=DummyHistory()),
+        "nom": PromptSession(completer=completeur_nom, complete_while_typing=True, history=DummyHistory()),
+        "texte": PromptSession(history=DummyHistory()),
+    }
+
+    def demander(question: str, defaut: str, genre: str = "texte") -> str:
+        session = sessions[genre]
+        if genre == "trait":  # les cinq traits s'affichent dès l'ouverture, sans taper de lettre
+            return session.prompt(
+                ANSI(question),
+                default=defaut,
+                pre_run=lambda: session.app.current_buffer.start_completion(select_first=False),
+            )
+        return session.prompt(ANSI(question), default=defaut)
+
+    return principale, demander
 
 
 def _attendre_fermeture() -> None:
@@ -453,23 +488,11 @@ def _principal(argv: list) -> None:
     if interactif:
         from prompt_toolkit.formatted_text import ANSI
 
-        session, completeur_trait = _session(app)
-
-        def demander(question: str, defaut: str) -> str:
-            if "trait" not in question.casefold():  # nom, note perso : pas de mots-clés
-                return session.prompt(ANSI(question), default=defaut)
-            # Les cinq traits s'affichent dès l'ouverture, sans taper la première lettre.
-            return session.prompt(
-                ANSI(question),
-                default=defaut,
-                completer=completeur_trait,
-                complete_while_typing=True,
-                pre_run=lambda: session.app.current_buffer.start_completion(select_first=False),
-            )
+        session, demander = _session(app)
 
     else:
 
-        def demander(question: str, defaut: str) -> str:
+        def demander(question: str, defaut: str, genre: str = "texte") -> str:
             return defaut
 
     if argv:

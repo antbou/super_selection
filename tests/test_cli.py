@@ -89,7 +89,7 @@ def _trait(app, nom):
 def test_ctrl_c_ou_ctrl_d_sur_le_trait_garde_tout(tmp_path, erreur):
     app = nouvelle_app(tmp_path)
 
-    def demander(question, defaut):
+    def demander(question, defaut, genre="texte"):
         raise erreur
 
     assert cli.executer(app, "Bob", demander) is True
@@ -102,7 +102,7 @@ def test_ctrl_c_sur_le_trait_garde_le_trait_actuel(tmp_path):
     app.croiser("Bob")
     app.noter("Bob", "noob")
 
-    def demander(question, defaut):
+    def demander(question, defaut, genre="texte"):
         raise KeyboardInterrupt
 
     assert cli.executer(app, "Bob", demander) is True
@@ -111,22 +111,22 @@ def test_ctrl_c_sur_le_trait_garde_le_trait_actuel(tmp_path):
 
 def test_trait_saisi_est_enregistre(tmp_path):
     app = nouvelle_app(tmp_path)
-    cli.executer(app, "Bob", lambda q, d: "noob, pro")
+    cli.executer(app, "Bob", lambda q, d, genre="texte": "noob, pro")
     assert _trait(app, "Bob") == "noob, pro"
 
 
 def test_tiret_efface_le_trait(tmp_path):
     app = nouvelle_app(tmp_path)
-    cli.executer(app, "Bob", lambda q, d: "noob")
-    cli.executer(app, "Bob", lambda q, d: "-")
+    cli.executer(app, "Bob", lambda q, d, genre="texte": "noob")
+    cli.executer(app, "Bob", lambda q, d, genre="texte": "-")
     assert _trait(app, "Bob") is None
 
 
 def test_reponse_vide_garde_le_trait(tmp_path):
     app = nouvelle_app(tmp_path)
-    cli.executer(app, "Bob", lambda q, d: "noob")
+    cli.executer(app, "Bob", lambda q, d, genre="texte": "noob")
     app.maintenant = lambda: "2026-11-15T21:00"
-    cli.executer(app, "Bob", lambda q, d: "")
+    cli.executer(app, "Bob", lambda q, d, genre="texte": "")
     assert _trait(app, "Bob") == "noob"
     assert app.carnet.trouver("Bob").rencontres == 2
 
@@ -140,7 +140,7 @@ def test_boucle_interactive_continue_si_l_enregistrement_echoue(isole, monkeypat
         def prompt(self, *args, **kwargs):
             return next(lignes)
 
-    monkeypatch.setattr(cli, "_session", lambda app: (FausseSession(), None))
+    monkeypatch.setattr(cli, "_session", lambda app: (FausseSession(), lambda q, d, genre="texte": d))
 
     def sauver_impossible(self, chemin):
         raise PermissionError(13, "Permission denied")
@@ -156,7 +156,7 @@ def test_joueur_nomme_comme_une_commande_est_croise(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Show Me")
     app.maintenant = lambda: "2026-11-15T21:00"
-    assert cli.executer(app, "show me", lambda q, d: "") is True
+    assert cli.executer(app, "show me", lambda q, d, genre="texte": "") is True
     assert app.carnet.trouver("Show Me").rencontres == 2
 
 
@@ -166,7 +166,7 @@ def test_update_sans_internet_reste_dans_l_outil(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(cli, "fetch_pyproject", panne)
     app = nouvelle_app(tmp_path)
-    assert cli.executer(app, "update", lambda q, d: "") is True
+    assert cli.executer(app, "update", lambda q, d, genre="texte": "") is True
     sortie = capsys.readouterr().out
     assert "Impossible de vérifier la dernière version" in sortie
     assert "Déjà à jour" not in sortie
@@ -181,7 +181,7 @@ def test_delete_demande_confirmation(tmp_path, reponse, reste):
     app.croiser("Bob")
     questions = []
 
-    def demander(question, defaut):
+    def demander(question, defaut, genre="texte"):
         questions.append(question)
         return reponse
 
@@ -194,7 +194,7 @@ def test_delete_ctrl_c_annule(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
 
-    def demander(question, defaut):
+    def demander(question, defaut, genre="texte"):
         raise KeyboardInterrupt
 
     cli.executer(app, "delete Bob", demander)
@@ -205,7 +205,7 @@ def test_edit_renomme_puis_note_sans_recompter(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Pizza")
     reponses = iter(["Pizza2", "noob", ""])  # nom, trait, note
-    cli.executer(app, "edit Pizza", lambda q, d: next(reponses))
+    cli.executer(app, "edit Pizza", lambda q, d, genre="texte": next(reponses))
     assert app.carnet.trouver("Pizza") is None
     assert app.carnet.trouver("Pizza2").rencontres == 1
     assert _trait(app, "Pizza2") == "noob"
@@ -216,7 +216,7 @@ def test_reset_demande_confirmation(tmp_path, reponse, reste):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     app.croiser("Alice")
-    cli.executer(app, "reset", lambda question, defaut: reponse)
+    cli.executer(app, "reset", lambda question, defaut, genre="texte": reponse)
     assert len(app.carnet.joueurs) == reste
     from superselection.carnet import Carnet
 
@@ -228,7 +228,7 @@ def test_reset_ctrl_c_annule(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
 
-    def demander(question, defaut):
+    def demander(question, defaut, genre="texte"):
         raise KeyboardInterrupt
 
     cli.executer(app, "reset", demander)
@@ -238,7 +238,7 @@ def test_reset_ctrl_c_annule(tmp_path):
 def test_reset_carnet_vide_ne_demande_rien(tmp_path, capsys):
     app = nouvelle_app(tmp_path)
 
-    def demander(question, defaut):
+    def demander(question, defaut, genre="texte"):
         raise AssertionError("pas de question")
 
     cli.executer(app, "reset", demander)
@@ -249,7 +249,7 @@ def _repondre(**reponses):
     """demander() qui répond selon le mot-clé présent dans la question (Trait / Note)."""
     questions = []
 
-    def demander(question, defaut):
+    def demander(question, defaut, genre="texte"):
         questions.append(question)
         for mot, reponse in reponses.items():
             if mot in question.casefold():
@@ -282,7 +282,7 @@ def test_croiser_ctrl_c_sur_la_note_garde_tout(tmp_path):
     app = nouvelle_app(tmp_path)
     app.memoriser("Bob", "ancienne")
 
-    def demander(question, defaut):
+    def demander(question, defaut, genre="texte"):
         if "note" in question.casefold():
             raise KeyboardInterrupt
         return "noob"
@@ -294,7 +294,7 @@ def test_croiser_ctrl_c_sur_la_note_garde_tout(tmp_path):
 
 def test_top_commande_non_interactive(tmp_path, capsys):
     app = nouvelle_app(tmp_path)
-    assert cli.executer(app, "top 2v2 unl", lambda q, d: "") is True
+    assert cli.executer(app, "top 2v2 unl", lambda q, d, genre="texte": "") is True
     sortie = capsys.readouterr().out
     assert "Unloukee" in sortie and "600 pts" in sortie
     assert app.carnet.trouver("top") is None  # ne compte pas de rencontre
@@ -308,7 +308,7 @@ def test_edit_champs_prerempli_entree_garde_tout(tmp_path):
     app.maintenant = lambda: "2026-11-15T23:00"
     vus = []
 
-    def entree(question, defaut):
+    def entree(question, defaut, genre="texte"):
         vus.append(defaut)
         return defaut  # Entrée sur un champ pré-rempli
 
@@ -325,20 +325,20 @@ def test_edit_corrige_sur_place_et_vide_efface(tmp_path):
     app.noter("Bob", "aggressive")
     app.memoriser("Bob", "joue le soir")
     reponses = iter(["Bob", "aggressive, noob", ""])  # nom gardé, trait corrigé, note vidée
-    cli.executer(app, "edit Bob", lambda q, d: next(reponses))
+    cli.executer(app, "edit Bob", lambda q, d, genre="texte": next(reponses))
     assert _trait(app, "Bob") == "aggressive, noob"
     assert app.carnet.trouver("Bob").memo == ""
 
 
 def test_edit_joueur_inconnu_ne_pose_aucune_question(tmp_path):
     app = nouvelle_app(tmp_path)
-    assert cli.executer(app, "edit Zorglub", lambda q, d: pytest.fail("pas de question")) is True
+    assert cli.executer(app, "edit Zorglub", lambda q, d, genre="texte": pytest.fail("pas de question")) is True
     assert app.carnet.trouver("Zorglub") is None
 
 
 def test_trait_hors_liste_est_refuse_et_signale(tmp_path, capsys):
     app = nouvelle_app(tmp_path)
-    cli.executer(app, "Bob", lambda q, d: "rush archers")
+    cli.executer(app, "Bob", lambda q, d, genre="texte": "rush archers")
     sortie = capsys.readouterr().out
     assert "rush" in sortie and "Trait enregistré" not in sortie
     assert _trait(app, "Bob") is None
@@ -347,8 +347,49 @@ def test_trait_hors_liste_est_refuse_et_signale(tmp_path, capsys):
 def test_traits_proposes_des_le_debut_sans_taper_de_lettre(tmp_path):
     from prompt_toolkit.document import Document
 
-    _, completeur_trait = cli._session(nouvelle_app(tmp_path))
+    _, _, completeur_trait = cli._completeurs(nouvelle_app(tmp_path))
     propositions = [c.text for c in completeur_trait.get_completions(Document(""), None)]
     assert propositions == ["aggressive", "defence", "noob", "tryhard", "pro"]
     apres_virgule = [c.text for c in completeur_trait.get_completions(Document("noob, "), None)]
     assert "pro" in apres_virgule
+
+
+def test_session_principale_garde_ses_noms_apres_une_question_de_trait(tmp_path):
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bobby")
+    with create_pipe_input() as entree, create_app_session(input=entree, output=DummyOutput()):
+        session, demander = cli._session(app)
+        entree.send_text("noob\r")
+        assert demander("  Son trait > ", "", genre="trait") == "noob"
+        entree.send_text("une note\r")
+        assert demander("  Une note > ", "", genre="texte") == "une note"
+        noms = [c.text for c in session.completer.get_completions(Document("Bob"), None)]
+        assert "Bobby" in noms
+        assert "noob" not in [c.text for c in session.completer.get_completions(Document("no"), None)]
+
+
+def _genres(tmp_path, ligne, reponses=()):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.maintenant = lambda: "2026-11-15T23:00"
+    genres = []
+    suite = iter(reponses)
+
+    def demander(question, defaut, genre="texte"):
+        genres.append(genre)
+        return next(suite, defaut)
+
+    cli.executer(app, ligne, demander)
+    return genres
+
+
+def test_genres_des_questions(tmp_path):
+    assert _genres(tmp_path, "delete Bob") == ["texte"]
+    assert _genres(tmp_path, "reset") == ["texte"]
+    assert _genres(tmp_path, "Bob") == ["trait", "texte"]
+    assert _genres(tmp_path, "edit Bob") == ["nom", "trait", "texte"]
