@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from .carnet import Carnet, Joueur
-from .classement import Classement
+from .classement import MODES, Classement
 from .couleurs import peindre, role_rang
 from .styles import decorer
 from .texte import sans_controle
@@ -17,6 +17,7 @@ la rencontre, puis tu notes son style et une note perso (Entrée = garder, « - 
 Tab complète les noms (top 100 + joueurs déjà croisés).
 
   <nom>             croiser un joueur              ex : [IMP] Pizza
+  top [1v1|2v2]     le top 100 complet, avec recherche en tapant (Tab = changer de mode)
   show <nom>        voir sa fiche (3 dernières saisons) sans compter de rencontre
   list              tous les joueurs déjà croisés
   delete <nom>      retirer un joueur du carnet (après confirmation)
@@ -36,6 +37,7 @@ Joueur qui s'appelle comme une commande ?  player list"""
 # mot tapé -> commande
 COMMANDES = {
     "show": "show",
+    "top": "top",
     "list": "list",
     "delete": "delete",
     "reset": "reset",
@@ -55,7 +57,7 @@ COMMANDES = {
 }
 
 # proposées par l'auto-complétion
-NOMS_COMMANDES = ("show", "list", "delete", "reset", "rename", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
+NOMS_COMMANDES = ("show", "top", "list", "delete", "reset", "rename", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
 
 
 def analyser(ligne: str, noms_connus=()) -> tuple:
@@ -218,6 +220,37 @@ class App:
     def voir(self, nom: str) -> str:
         nom = self.nom_canonique(nom)
         return self._fiche(nom, self.carnet.trouver(nom), historique=True)
+
+    @staticmethod
+    def lire_top(argument: str) -> tuple:
+        """Découpe l'argument de `top` en (mode, filtre). Mode 1v1 par défaut."""
+        mot, _, reste = argument.strip().partition(" ")
+        if mot.casefold() in MODES:
+            return mot.casefold(), reste.strip()
+        return "1v1", argument.strip()
+
+    def top(self, mode: str, filtre: str = "") -> str:
+        """Le top 100 d'un mode ; `filtre` garde les noms qui le contiennent (rang d'origine conservé)."""
+        if self.classement is None:
+            return self._c("Classement indisponible (essaie « refresh »).", "erreur")
+        cle = filtre.strip().casefold()
+        vus = {j.nom.casefold(): j.rencontres for j in self.carnet.joueurs if j.rencontres}
+        lignes = []
+        for position, ligne in enumerate(self.classement.lignes.get(mode, []), start=1):
+            if cle in ligne["name"].casefold():
+                vu = self._c(f"  vu {vus[ligne['name'].casefold()]}x", "info") if ligne["name"].casefold() in vus else ""
+                lignes.append(
+                    self._c(f"#{position:<4}", role_rang(position))
+                    + self._c(ligne["name"], "nom")
+                    + self._c(f"  {ligne['rating']} pts", "info")
+                    + vu
+                )
+        titre = f"Top 100 {mode} (saison {self.classement.saison})"
+        if cle:
+            titre += f" — « {filtre.strip()} » : {len(lignes)}"
+        if not lignes:
+            return titre + "\n  " + self._c("Aucun joueur ne correspond.", "info")
+        return titre + "\n" + "\n".join("  " + l for l in lignes)
 
     def mon_style(self, nom: str) -> str:
         joueur = self.carnet.trouver(nom)

@@ -288,3 +288,11 @@ def test_croiser_ctrl_c_sur_la_note_garde_tout(tmp_path):
     cli.executer(app, "Bob", demander)
     assert _style(app, "Bob") == "rush"
     assert app.mon_memo("Bob") == "ancienne"
+
+
+def test_top_commande_non_interactive(tmp_path, capsys):
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, "top 2v2 unl", lambda q, d: "") is True
+    sortie = capsys.readouterr().out
+    assert "Unloukee" in sortie and "600 pts" in sortie
+    assert app.carnet.trouver("top") is None  # ne compte pas de rencontre

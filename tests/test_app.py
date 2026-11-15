@@ -1,3 +1,4 @@
+from superselection.couleurs import sans_couleur
 from superselection.app import App, analyser
 from superselection.carnet import Carnet
 from superselection.classement import Classement
@@ -332,3 +333,46 @@ def test_export_sans_les_notes_perso(tmp_path):
     app.exporter(str(tmp_path / "e.json"))
     assert "secret" not in (tmp_path / "e.json").read_text(encoding="utf-8")
     assert "secret" in (tmp_path / "carnet.json").read_text(encoding="utf-8")
+
+
+# --- top : classement complet avec recherche -------------------------------------
+
+def test_analyser_top():
+    assert analyser("top") == ("top", "")
+    assert analyser("top 2v2 unl") == ("top", "2v2 unl")
+    assert analyser("player top") == ("croiser", "top")
+
+
+def test_top_liste_le_classement_du_mode(tmp_path):
+    texte = sans_couleur(nouvelle_app(tmp_path).top("1v1"))
+    assert "Top 100 1v1 (saison 29)" in texte
+    assert "#1" in texte and "[IMP] Pizza" in texte and "872 pts" in texte
+    assert "#2" in texte and "Unloukee" in texte
+
+
+def test_top_2v2(tmp_path):
+    texte = sans_couleur(nouvelle_app(tmp_path).top("2v2"))
+    assert "Unloukee" in texte and "600 pts" in texte
+    assert "Pizza" not in texte
+
+
+def test_top_filtre_par_fragment_sans_casse_et_garde_le_vrai_rang(tmp_path):
+    texte = sans_couleur(nouvelle_app(tmp_path).top("1v1", "LOUK"))
+    assert "#2" in texte and "Unloukee" in texte
+    assert "Pizza" not in texte
+
+
+def test_top_filtre_sans_resultat(tmp_path):
+    assert "Aucun joueur" in sans_couleur(nouvelle_app(tmp_path).top("1v1", "zzz"))
+
+
+def test_top_sans_classement(tmp_path):
+    assert "indisponible" in nouvelle_app(tmp_path, classement=False).top("1v1")
+
+
+def test_lire_top_argument(tmp_path):
+    app = nouvelle_app(tmp_path)
+    assert app.lire_top("") == ("1v1", "")
+    assert app.lire_top("2V2") == ("2v2", "")
+    assert app.lire_top("2v2 unl") == ("2v2", "unl")
+    assert app.lire_top("pizza") == ("1v1", "pizza")

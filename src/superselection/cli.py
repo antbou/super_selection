@@ -17,7 +17,7 @@ from platformdirs import user_cache_dir, user_data_dir
 from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet, CarnetInvalide
 from .classement import MODES, charger_classement, charger_saison, fetch_http
-from .couleurs import colorer_aide, peindre
+from .couleurs import colorer_aide, peindre, sans_couleur
 from .styles import aide_styles, tags_commencant_par
 from .texte import sans_controle
 from .version import etat_version, fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
@@ -129,6 +129,12 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         afficher(f"Mise à jour {actuelle} -> {nouvelle}…")
         afficher(c(lancer_mise_a_jour(), "ok"))
         return False
+    elif commande == "top":
+        mode, filtre = app.lire_top(argument)
+        if filtre or not sys.stdin.isatty():
+            afficher(app.top(mode, filtre))
+        else:
+            _recherche_top(app, mode)
     elif commande == "show":
         afficher(app.voir(argument) if argument else c("Indique un nom.  ex : show [IMP] Pizza", "info"))
     elif commande == "croiser":
@@ -168,6 +174,80 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         elif reponse and reponse != "-" and reponse != memo:
             afficher("  " + app.memoriser(nom, reponse))
     return True
+
+
+DEBOUNCE = 0.12  # secondes entre la dernière frappe et le filtrage
+
+
+def _recherche_top(app: App, mode: str) -> None:
+    """Écran du top 100 : on tape, la liste se filtre (avec debounce). Tab = 1v1/2v2, Échap = sortir."""
+    from prompt_toolkit import Application
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.formatted_text import ANSI
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout import BufferControl, FormattedTextControl, HSplit, Layout, VSplit, Window
+
+    etat = {"mode": mode, "filtre": "", "minuteur": None, "defilement": 0}
+    couleur = _COULEUR
+
+    def lignes_visibles() -> list:
+        rendu_top = app.top(etat["mode"], etat["filtre"])
+        return (rendu_top if couleur else sans_couleur(rendu_top)).split("\n")
+
+    def rendu():
+        return ANSI("\n".join(lignes_visibles()[etat["defilement"]:]))
+
+    saisie = Buffer()
+    invite = Window(FormattedTextControl(lambda: ANSI(c("recherche > ", "invite"))), width=12, height=1)
+
+    def planifier(_):
+        if etat["minuteur"]:
+            etat["minuteur"].cancel()
+
+        def appliquer():
+            etat["filtre"], etat["defilement"] = saisie.text, 0
+            application.invalidate()
+
+        etat["minuteur"] = application.loop.call_later(DEBOUNCE, appliquer)
+
+    saisie.on_text_changed += planifier
+
+    saisie_fenetre = Window(BufferControl(saisie), height=1)
+    touches = KeyBindings()
+
+    @touches.add("tab")
+    def _(event):
+        etat["mode"] = "2v2" if etat["mode"] == "1v1" else "1v1"
+        etat["defilement"] = 0
+
+    @touches.add("down")
+    @touches.add("pagedown")
+    def _(event):
+        etat["defilement"] = min(etat["defilement"] + 5, max(len(lignes_visibles()) - 2, 0))
+
+    @touches.add("up")
+    @touches.add("pageup")
+    def _(event):
+        etat["defilement"] = max(etat["defilement"] - 5, 0)
+
+    @touches.add("escape", eager=True)
+    @touches.add("enter")
+    @touches.add("c-c")
+    @touches.add("c-d")
+    def _(event):
+        event.app.exit()
+
+    barre = FormattedTextControl(lambda: ANSI(c(f"  {etat['mode']}", "invite") + c("  Tab = 1v1/2v2 · ↑↓ défiler · Échap = sortir", "info")))
+    layout = Layout(
+        HSplit([
+            Window(FormattedTextControl(rendu)),
+            Window(barre, height=1),
+            VSplit([invite, saisie_fenetre]),
+        ]),
+        focused_element=saisie_fenetre,
+    )
+    application = Application(layout=layout, key_bindings=touches, full_screen=True)
+    application.run()
 
 
 def _session(app: App):
