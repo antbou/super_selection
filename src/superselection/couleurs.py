@@ -12,7 +12,7 @@ ROLES = {
     "top100": "92",  # rang 51 à 100 : vert
     "hors": "2",  # hors top 100 : grisé
     "info": "2",  # texte secondaire : grisé
-    "auteur": "95",  # « toi », « Kevin » : magenta
+    "auteur": "95",  # pseudos des auteurs (« Antho », « Kevin ») : magenta
     "trait": "97",  # texte du trait : blanc
     "commande": "93",  # commandes dans l'aide : jaune
     "ok": "92",  # confirmation : vert

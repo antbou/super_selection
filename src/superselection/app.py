@@ -14,27 +14,27 @@ from .traits import aide_traits, decorer, valider
 from .texte import sans_controle
 
 AIDE = """\
-Tape le nom d'un adversaire : je te dis s'il est dans le top 100, je compte
-la rencontre, puis tu notes son trait et une note perso (Entrée = garder, « - » = effacer).
+Saisir le nom d'un adversaire : affiche son rang dans le top 100, compte la
+rencontre, puis demande un trait et une note perso (Entrée = garder, « - » = effacer).
 Tab complète les noms (top 100 + joueurs déjà croisés).
 
   <nom>             croiser un joueur              ex : [IMP] Pizza
-  top [1v1|2v2]     le top 100 complet, avec recherche en tapant (Tab = changer de mode)
-  show <nom>        voir sa fiche (3 dernières saisons) sans compter de rencontre
-  edit <nom>        corriger son nom, son trait, ta note (champs pré-remplis), sans compter
-  list              tous les joueurs déjà croisés
-  delete <nom>      retirer un joueur du carnet (après confirmation)
-  reset             vider tout le carnet (après confirmation)
-  export <fichier>  envoyer ton carnet à un pote   ex : export antho.json
-  import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
-  traits            les mots-clés de trait et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
+  top [1v1|2v2]     afficher le top 100, recherche en tapant (Tab = changer de mode)
+  show <nom>        afficher la fiche (3 dernières saisons), sans compter de rencontre
+  edit <nom>        modifier nom, trait et note (champs pré-remplis), sans compter
+  list              lister les joueurs déjà croisés
+  delete <nom>      supprimer un joueur du carnet (confirmation)
+  reset             vider le carnet (confirmation)
+  export <fichier>  exporter le carnet vers un fichier   ex : export antho.json
+  import <fichier>  fusionner un carnet exporté          ex : import kevin.json
+  traits            lister les mots-clés de trait et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
   refresh           recharger le classement
   update            installer la dernière version
-  version           voir la version installée
-  help              cette aide
-  quit              sortir (ou Ctrl+D)
+  version           afficher la version installée
+  help              afficher cette aide
+  quit              quitter (ou Ctrl+D)
 
-Joueur qui s'appelle comme une commande ?  player list"""
+Nom de joueur identique à une commande :  player list"""
 
 # mot tapé -> commande
 COMMANDES = {
@@ -219,8 +219,7 @@ class App:
         if not traits:
             lignes.append("  Trait : " + self._c("pas encore noté", "info"))
         for auteur, note in sorted(traits.items(), key=lambda a: a[0] != self.carnet.auteur):
-            qui = "toi" if auteur == self.carnet.auteur else auteur
-            lignes.append(f"  Trait ({self._c(qui, 'auteur')}) : " + self._c(decorer(note.texte), "trait"))
+            lignes.append(f"  Trait ({self._c(auteur, 'auteur')}) : " + self._c(decorer(note.texte), "trait"))
         return "\n".join(lignes)
 
     def nom_canonique(self, nom: str) -> str:
@@ -253,7 +252,7 @@ class App:
             fiche += "\n  " + self._c("Nouveau joueur.", "info")
             if proches := self._noms_proches(nom):
                 fiche += self._c(" Noms proches : ", "info") + ", ".join(proches)
-                fiche += self._c(f" (si c'est le même joueur : delete {nom}, puis tape le bon nom)", "info")
+                fiche += self._c(f" (même joueur ? delete {nom}, puis saisir le bon nom)", "info")
         return fiche
 
     def voir(self, nom: str) -> str:
@@ -265,7 +264,7 @@ class App:
         nom = self.nom_canonique(nom)
         joueur = self.carnet.trouver(nom)
         if joueur is None:
-            return self._c(f"« {nom} » n'est pas dans ton carnet : tape son nom d'abord.", "erreur")
+            return self._c(f"« {nom} » n'est pas dans le carnet : saisir d'abord son nom.", "erreur")
         return self._fiche(joueur.nom, joueur)
 
     @staticmethod
@@ -279,7 +278,7 @@ class App:
     def top(self, mode: str, filtre: str = "") -> str:
         """Le top 100 d'un mode ; `filtre` garde les noms qui le contiennent (rang d'origine conservé)."""
         if self.classement is None:
-            return self._c("Classement indisponible (essaie « refresh »).", "erreur")
+            return self._c("Classement indisponible (réessayer avec « refresh »).", "erreur")
         cle = filtre.strip().casefold()
         vus = {j.nom.casefold(): j.rencontres for j in self.carnet.joueurs if j.rencontres}
         lignes = []
@@ -333,41 +332,41 @@ class App:
     def supprimer(self, nom: str) -> str:
         joueur = self.carnet.supprimer(nom.strip())
         if joueur is None:
-            return self._c(f"« {nom.strip()} » n'est pas dans ton carnet.", "erreur")
+            return self._c(f"« {nom.strip()} » n'est pas dans le carnet.", "erreur")
         self._sauver()
         return self._c(f"{joueur.nom} retiré du carnet.", "ok")
 
     def vider(self) -> str:
         nombre = self.carnet.vider()
         self._sauver()
-        return self._c(f"Carnet vidé ({nombre} joueur(s) retiré(s)). Ton pseudo est gardé.", "ok")
+        return self._c(f"Carnet vidé ({nombre} joueur(s) retiré(s)). Pseudo conservé.", "ok")
 
     def renommer(self, ancien: str, nouveau: str) -> str:
         ancien = ancien.strip()
         if not sans_controle(nouveau).strip():
-            return self._c("Indique le nouveau nom.", "erreur")
+            return self._c("Nouveau nom manquant.", "erreur")
         joueur = self.carnet.trouver(ancien)
         if joueur is None:
-            return self._c(f"« {ancien} » n'est pas dans ton carnet.", "erreur")
+            return self._c(f"« {ancien} » n'est pas dans le carnet.", "erreur")
         nouveau = sans_controle(nouveau).strip()
         if self.classement and (officiel := self.classement.nom_officiel(nouveau)):
             nouveau = officiel  # casse exacte du classement ; sinon tel que tapé
         try:
             self.carnet.renommer(ancien, nouveau)
         except ValueError:
-            return self._c(f"« {nouveau} » existe déjà dans ton carnet : supprime l'un des deux d'abord.", "erreur")
+            return self._c(f"« {nouveau} » existe déjà dans le carnet : supprimer l'un des deux d'abord.", "erreur")
         self._sauver()
         return self._c(f"{ancien} renommé en {nouveau}.", "ok")
 
     def liste(self) -> str:
         joueurs = [j for j in self.carnet.recents() if j.rencontres or j.traits or j.memo]
         if not joueurs:
-            return "Aucun joueur dans ton carnet pour l'instant."
+            return "Aucun joueur dans le carnet."
         largeur = min(max(len(j.nom) for j in joueurs), 30)
         lignes = [f"{len(joueurs)} joueur(s) :"]
         for j in joueurs:
             traits = self._c(" | ", "info").join(
-                self._c("toi" if a == self.carnet.auteur else a, "auteur") + ": " + decorer(n.texte)
+                self._c(a, "auteur") + ": " + decorer(n.texte)
                 for a, n in j.traits.items()
             )
             vu = f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "jamais croisé"
@@ -376,21 +375,21 @@ class App:
 
     def exporter(self, chemin: str) -> str:
         if not chemin:
-            return "Indique un fichier.  ex : export antho.json"
+            return "Fichier manquant.  ex : export antho.json"
         cible = Path(chemin).expanduser()
         if cible.suffix == "":
             cible = cible.with_suffix(".json")
         if cible.resolve() == self.chemin_carnet.resolve():
-            return self._c("Choisis un autre fichier : celui-ci est ton carnet.", "erreur")
+            return self._c("Export impossible : ce fichier est le carnet lui-même.", "erreur")
         try:
             self.carnet.sauver(cible, avec_memos=False)
         except OSError as erreur:
             return self._c(f"Impossible d'écrire {cible} : {erreur.strerror or erreur}", "erreur")
-        return f"Carnet exporté dans {cible.resolve()} — envoie ce fichier à ton pote."
+        return f"Carnet exporté dans {cible.resolve()}."
 
     def importer(self, chemin: str) -> str:
         if not chemin:
-            return "Indique un fichier.  ex : import kevin.json"
+            return "Fichier manquant.  ex : import kevin.json"
         source = Path(chemin).expanduser()
         try:
             autre = Carnet.charger(source)
@@ -405,7 +404,7 @@ class App:
         return (
             f"Carnet de {autre.auteur} fusionné : {bilan.joueurs_ajoutes} joueur(s) ajouté(s), "
             f"{bilan.traits_ajoutes} trait(s) ajouté(s), {bilan.traits_maj} trait(s) mis à jour. "
-            "Tes traits et tes notes perso n'ont pas été touchés."
+            "Traits et notes perso existants inchangés."
         )
 
     def noms(self) -> list:

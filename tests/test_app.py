@@ -57,7 +57,7 @@ def test_croiser_deux_fois_affiche_le_compteur_et_le_trait(tmp_path):
     texte = app.croiser("bob")
     assert "1v1 : hors top 100" in texte
     assert "Croisé 2 fois" in texte
-    assert "Trait (toi) : 🐣 noob" in texte
+    assert "Trait (Antho) : 🐣 noob" in texte
 
 
 def test_voir_ne_compte_pas_de_rencontre(tmp_path):
@@ -96,7 +96,7 @@ def test_export_puis_import_chez_le_pote(tmp_path):
     texte = pote.importer(str(fichier))
     assert "1 joueur(s) ajouté(s)" in texte
     assert "1 trait(s) ajouté(s), 0 trait(s) mis à jour" in texte
-    assert "Tes traits et tes notes perso n'ont pas été touchés." in texte
+    assert "Traits et notes perso existants inchangés." in texte
     assert pote.carnet.trouver("Bob").traits["Antho"].texte == "noob"
 
 
@@ -121,7 +121,7 @@ def test_fiche_et_liste_affichent_les_emojis(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     app.noter("Bob", "aggressive, noob")
-    assert "Trait (toi) : 🔥 aggressive, 🐣 noob" in app.voir("Bob")
+    assert "Trait (Antho) : 🔥 aggressive, 🐣 noob" in app.voir("Bob")
     assert "🔥 aggressive" in app.liste()
     assert app.carnet.trouver("Bob").traits["Antho"].texte == "aggressive, noob"  # stocké sans emoji
 
@@ -210,7 +210,7 @@ def test_nouveau_joueur_propose_des_noms_proches(tmp_path):
     texte = app.croiser("Pizza")
     assert "Nouveau joueur." in texte
     assert "Noms proches : [IMP] Pizza" in texte
-    assert "(si c'est le même joueur : delete Pizza, puis tape le bon nom)" in texte
+    assert "(même joueur ? delete Pizza, puis saisir le bon nom)" in texte
     assert app.carnet.trouver("Pizza") is not None  # on suggère, on ne fusionne pas
 
 
@@ -233,7 +233,7 @@ def test_supprimer(tmp_path):
     assert "retiré" in app.supprimer("BOB")
     assert app.carnet.trouver("Bob") is None
     assert "Bob" not in (tmp_path / "carnet.json").read_text(encoding="utf-8")
-    assert "n'est pas dans ton carnet" in app.supprimer("Bob")
+    assert "n'est pas dans le carnet" in app.supprimer("Bob")
 
 
 def test_renommer_garde_rencontres_et_traits(tmp_path):
@@ -252,8 +252,8 @@ def test_renommer_refuse_les_cas_invalides(tmp_path):
     app.croiser("Bob")
     app.croiser("Alice")
     assert "existe déjà" in app.renommer("Bob", "alice")
-    assert "n'est pas dans ton carnet" in app.renommer("Zed", "Zoe")
-    assert "nouveau nom" in app.renommer("Bob", " ")
+    assert "n'est pas dans le carnet" in app.renommer("Zed", "Zoe")
+    assert "Nouveau nom manquant" in app.renommer("Bob", " ")
     assert app.carnet.trouver("Bob") is not None
 
 
@@ -393,7 +393,7 @@ def test_modifier_ne_compte_pas_de_rencontre(tmp_path):
 
 def test_modifier_joueur_inconnu(tmp_path):
     app = nouvelle_app(tmp_path)
-    assert "pas dans ton carnet" in app.modifier("Zorglub")
+    assert "pas dans le carnet" in app.modifier("Zorglub")
     assert app.carnet.trouver("Zorglub") is None
 
 
@@ -444,7 +444,7 @@ def test_export_vers_son_propre_carnet_est_refuse(tmp_path):
     app.memoriser("Bob", "secret")
     avant = app.chemin_carnet.read_text(encoding="utf-8")
     message = app.exporter(str(app.chemin_carnet))
-    assert "Choisis un autre fichier : celui-ci est ton carnet." in message
+    assert "Export impossible : ce fichier est le carnet lui-même." in message
     assert app.chemin_carnet.read_text(encoding="utf-8") == avant
 
 

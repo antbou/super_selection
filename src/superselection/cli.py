@@ -77,7 +77,7 @@ def _questions(app: App, nom: str, demander: Demander) -> None:
     question = (
         "  Nouveau trait ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
         if actuel
-        else "  Son trait ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
+        else "  Trait ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
     )
     reponse = demander(question, "", genre="trait").strip()
     if reponse == "-" and actuel:
@@ -147,7 +147,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         afficher(app.liste())
     elif commande == "delete":
         if not argument:
-            afficher(c("Indique un nom.  ex : delete Pizza", "info"))
+            afficher(c("Nom manquant.  ex : delete Pizza", "info"))
         elif (joueur := app.carnet.trouver(argument)) is None:
             afficher(app.supprimer(argument))
         else:
@@ -167,7 +167,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         else:
             question = (
                 c(f"  Supprimer TOUT le carnet ({nombre} joueur(s), rencontres et traits) ? Irréversible. ", "erreur")
-                + c("(tape « oui », Entrée = non)", "info") + " > "
+                + c("(« oui » pour confirmer, Entrée = non)", "info") + " > "
             )
             try:
                 reponse = demander(question, "", genre="texte").strip().casefold()
@@ -176,11 +176,11 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             afficher(app.vider() if reponse == "oui" else c("Annulé.", "info"))
     elif commande == "edit":
         if not argument:
-            afficher(c("Indique un nom.  ex : edit [IMP] Pizza", "info"))
+            afficher(c("Nom manquant.  ex : edit [IMP] Pizza", "info"))
             return True
         _en_transaction(app, lambda: _editer(app, app.nom_canonique(argument), demander))
     elif commande == "rename":
-        afficher(c("`rename` n'existe plus : utilise « edit <nom> » pour changer un nom.", "info"))
+        afficher(c("`rename` n'existe plus : utiliser « edit <nom> » pour changer un nom.", "info"))
     elif commande == "export":
         afficher(app.exporter(argument))
     elif commande == "import":
@@ -197,7 +197,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         actuelle = version_installee()
         etat, nouvelle = etat_version(actuelle, fetch_pyproject)
         if etat == "injoignable":
-            afficher(c("Impossible de vérifier la dernière version (pas d'internet ?). Réessaie plus tard.", "erreur"))
+            afficher(c("Impossible de vérifier la dernière version (pas d'internet ?). Réessayer plus tard.", "erreur"))
             return True
         if etat == "a_jour":
             afficher(c(f"Déjà à jour (version {actuelle}).", "ok"))
@@ -213,10 +213,10 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         else:
             _recherche_top(app, mode)
     elif commande == "show":
-        afficher(app.voir(argument) if argument else c("Indique un nom.  ex : show [IMP] Pizza", "info"))
+        afficher(app.voir(argument) if argument else c("Nom manquant.  ex : show [IMP] Pizza", "info"))
     elif commande == "croiser":
         if not argument:
-            afficher(c("Indique un nom.  ex : player list", "info"))
+            afficher(c("Nom manquant.  ex : player list", "info"))
             return True
 
         def rencontre():
@@ -399,7 +399,7 @@ def _attendre_fermeture() -> None:
     """Garde la fenêtre ouverte (raccourci Windows) pour que l'erreur reste lisible."""
     if sys.stdin.isatty():
         try:
-            input("Appuie sur Entrée pour fermer…")
+            input("Appuyer sur Entrée pour fermer…")
         except (EOFError, KeyboardInterrupt):
             pass
 
@@ -414,9 +414,9 @@ def main(argv: list | None = None) -> None:
 
 
 def _echec_carnet(erreur: Exception) -> None:
-    afficher(c(f"Ton carnet est illisible : {dossiers()[0] / 'carnet.json'}", "erreur"))
+    afficher(c(f"Carnet illisible : {dossiers()[0] / 'carnet.json'}", "erreur"))
     afficher(f"  {erreur}")
-    afficher("Corrige ce fichier ou renomme-le pour repartir d'un carnet vide.")
+    afficher("Corriger ce fichier ou le renommer pour repartir d'un carnet vide.")
     _attendre_fermeture()
     sys.exit(1)
 
@@ -446,15 +446,15 @@ def _charger_carnet(chemin_carnet: Path, interactif: bool) -> Carnet | None:
             raise CarnetInvalide(str(erreur)) from erreur
     if not interactif:
         afficher(
-            "Premier lancement : lance « superselection » dans un terminal pour choisir ton pseudo."
+            "Premier lancement : exécuter « superselection » dans un terminal pour choisir un pseudo."
         )
         sys.exit(1)
-    afficher("Bienvenue ! Premier lancement.")
+    afficher("Premier lancement.")
     pseudo = ""
     while not pseudo:
         try:
             pseudo = sans_controle(
-                input("Ton pseudo (il signe tes traits quand tu partages ton carnet) : ")
+                input("Pseudo (signe les traits à l'export) : ")
             ).strip()
         except (KeyboardInterrupt, EOFError):
             afficher("")
@@ -492,7 +492,7 @@ def _principal(argv: list) -> None:
     if nouvelle:
         afficher(
             c(f"Nouvelle version {nouvelle} disponible", "top10")
-            + f" (tu as {version_installee()}) : tape « {c('update', 'commande')} »."
+            + f" (installée : {version_installee()}) : « {c('update', 'commande')} »."
         )
 
     app = App(
@@ -524,7 +524,7 @@ def _principal(argv: list) -> None:
                 break
         return
 
-    afficher("Tape un nom de joueur " + c("(Tab pour compléter)", "info") + ", « " + c("help", "commande") + " » pour les commandes.")
+    afficher("Saisir un nom de joueur " + c("(Tab pour compléter)", "info") + ", « " + c("help", "commande") + " » pour les commandes.")
     while True:
         try:
             ligne = session.prompt(ANSI(c("adversaire", "invite") + " > "))
@@ -539,12 +539,11 @@ def _principal(argv: list) -> None:
             afficher(
                 c(
                     f"Impossible d'enregistrer le carnet : {erreur.strerror or erreur}. "
-                    "Ferme le programme qui utilise ce fichier ; l'enregistrement sera "
+                    "Fermer le programme qui utilise ce fichier ; l'enregistrement sera "
                     "refait à la prochaine saisie.",
                     "erreur",
                 )
             )
-    afficher("À plus !")
 
 
 if __name__ == "__main__":

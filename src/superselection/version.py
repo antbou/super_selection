@@ -84,10 +84,10 @@ def lancer_mise_a_jour() -> tuple:
             return True, "Mise à jour lancée dans une nouvelle fenêtre. Celle-ci va se fermer."
         uv = shutil.which("uv")
         if uv is None:
-            return False, f"uv introuvable. Mets à jour à la main : uv tool install --force {ZIP}"
+            return False, f"uv introuvable. Mise à jour manuelle : uv tool install --force {ZIP}"
         resultat = subprocess.run([uv, "tool", "install", "--force", "--reinstall", "--refresh", ZIP])
     except OSError as erreur:
         return False, f"Impossible de lancer la mise à jour : {erreur.strerror or erreur}"
     if resultat.returncode != 0:
         return False, "La mise à jour a échoué (voir le message ci-dessus)."
-    return True, "Mise à jour terminée. Relance superselection."
+    return True, "Mise à jour terminée. Relancer superselection."

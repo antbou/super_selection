@@ -41,7 +41,7 @@ def test_premier_lancement_sans_terminal(isole, capsys):
     with pytest.raises(SystemExit) as sortie:
         cli.main(["list"])
     assert sortie.value.code == 1
-    assert "Premier lancement : lance « superselection » dans un terminal" in capsys.readouterr().out
+    assert "Premier lancement : exécuter « superselection » dans un terminal" in capsys.readouterr().out
     assert not (isole / "carnet.json").exists()
 
 
@@ -151,7 +151,7 @@ def test_boucle_interactive_continue_si_l_enregistrement_echoue(isole, monkeypat
     cli.main([])
     sortie = capsys.readouterr().out
     assert "Impossible d'enregistrer le carnet" in sortie
-    assert "À plus !" in sortie
+    assert "Fermer le programme" in sortie
 
 
 def test_joueur_nomme_comme_une_commande_est_croise(tmp_path):
@@ -420,7 +420,7 @@ def test_session_principale_garde_ses_noms_apres_une_question_de_trait(tmp_path)
     with create_pipe_input() as entree, create_app_session(input=entree, output=DummyOutput()):
         session, demander = cli._session(app)
         entree.send_text("noob\r")
-        assert demander("  Son trait > ", "", genre="trait") == "noob"
+        assert demander("  Trait > ", "", genre="trait") == "noob"
         entree.send_text("une note\r")
         assert demander("  Une note > ", "", genre="texte") == "une note"
         noms = [c.text for c in session.completer.get_completions(Document("Bob"), None)]

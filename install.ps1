@@ -28,5 +28,5 @@ uv tool update-shell | Out-Null
 
 Write-Host ""
 Write-Host "Termine !" -ForegroundColor Green
-Write-Host "Ferme ce terminal, rouvre-le, puis tape :  superselection"
+Write-Host "Fermer ce terminal, en ouvrir un nouveau, puis lancer :  superselection"
 Write-Host ""

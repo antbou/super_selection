@@ -1,48 +1,46 @@
 # Installer superselection sur Windows
 
-Pour quelqu'un qui n'a **rien** d'installé. Pas de Python, pas de Git, pas de droits
-administrateur : le script s'occupe de tout.
+Installation sur un poste sans rien de préinstallé : ni Python, ni Git, ni droits
+administrateur. Le script installe tout.
 
 ## 1. Ouvrir PowerShell
 
-Touche Windows, tape `PowerShell` (ou `Terminal` sur Windows 11), puis Entrée.
+Touche Windows, saisir `PowerShell` (ou `Terminal` sur Windows 11), puis Entrée.
 
-## 2. Coller cette ligne, puis Entrée
+## 2. Coller la ligne suivante, puis Entrée
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/antbou/super_selection/main/install.ps1 | iex"
 ```
 
-Clic droit dans la fenêtre = coller. La première fois, ça prend environ une minute (Python
-est téléchargé). Attends le message **Terminé !**
+Clic droit dans la fenêtre = coller. La première installation dure environ une minute
+(téléchargement de Python). Attendre le message **Termine !**
 
-## 3. Fermer la fenêtre, en rouvrir une, et lancer
+## 3. Fermer la fenêtre, en ouvrir une nouvelle, puis lancer
 
 ```powershell
 superselection
 ```
 
-Au premier lancement, l'outil te demande ton pseudo (il signe tes notes quand tu partages ton
-carnet). Ensuite tape le nom d'un adversaire, et `help` pour voir les commandes.
-
-C'est tout.
+Au premier lancement, l'outil demande un pseudo (il signe les traits à l'export). Ensuite,
+saisir le nom d'un adversaire ; `help` affiche les commandes.
 
 ---
 
 ## Mettre à jour
 
-Quand l'outil annonce « Nouvelle version disponible », tape `update`. Une nouvelle
-fenêtre fait la mise à jour et relance l'outil. Ton carnet est conservé. Ça marche aussi en
-recollant la ligne de l'étape 2.
+Quand l'outil annonce « Nouvelle version disponible », lancer `update`. Une nouvelle
+fenêtre effectue la mise à jour et relance l'outil. Le carnet est conservé. Coller à nouveau
+la ligne de l'étape 2 donne le même résultat.
 
 ## Lancer d'un double-clic
 
-Crée un raccourci sur le bureau vers `C:\Users\<toi>\.local\bin\superselection.exe`.
+Créer un raccourci sur le bureau vers `C:\Users\<utilisateur>\.local\bin\superselection.exe`.
 
-## Où est mon carnet ?
+## Emplacement du carnet
 
-`%APPDATA%\superselection\carnet.json`. Pour ouvrir le dossier : touche Windows + R, colle
-`%APPDATA%\superselection`, puis Entrée. Copie ce fichier pour faire une sauvegarde.
+`%APPDATA%\superselection\carnet.json`. Pour ouvrir le dossier : touche Windows + R, coller
+`%APPDATA%\superselection`, puis Entrée. Copier ce fichier pour une sauvegarde.
 
 ## Désinstaller
 
@@ -50,46 +48,46 @@ Crée un raccourci sur le bureau vers `C:\Users\<toi>\.local\bin\superselection.
 uv tool uninstall superselection
 ```
 
-Le carnet reste dans `%APPDATA%\superselection` ; supprime ce dossier pour tout effacer.
+Le carnet reste dans `%APPDATA%\superselection` ; supprimer ce dossier pour tout effacer.
 
 ## Dépannage
 
 **« superselection n'est pas reconnu… »**
 
-1. Ferme **toutes** les fenêtres PowerShell et rouvre-en une : le PATH n'est lu qu'à l'ouverture.
-2. Toujours pas ? Ajoute le dossier au PATH à la main :
-   - touche Windows, tape `variables d'environnement`, ouvre **Modifier les variables
+1. Fermer **toutes** les fenêtres PowerShell et en ouvrir une nouvelle : le PATH n'est lu qu'à l'ouverture.
+2. Si l'erreur persiste, ajouter le dossier au PATH à la main :
+   - touche Windows, saisir `variables d'environnement`, ouvrir **Modifier les variables
      d'environnement pour votre compte** ;
-   - sélectionne **Path** → **Modifier** → **Nouveau**, colle `%USERPROFILE%\.local\bin` ;
-   - OK, OK, puis rouvre PowerShell.
+   - sélectionner **Path** → **Modifier** → **Nouveau**, coller `%USERPROFILE%\.local\bin` ;
+   - OK, OK, puis rouvrir PowerShell.
 
 **Les noms chinois ou russes s'affichent en carrés `□`**
 
-Utilise **Windows Terminal** (inclus dans Windows 11, gratuit sur le Microsoft Store pour
-Windows 10). Si ça persiste : Paramètres → ton profil → Apparence → police **MS Gothic**.
+Utiliser **Windows Terminal** (inclus dans Windows 11, gratuit sur le Microsoft Store pour
+Windows 10). Si ça persiste : Paramètres → profil → Apparence → police **MS Gothic**.
 
-**Je n'arrive pas à taper un nom chinois ou russe**
+**Nom chinois ou russe impossible à saisir**
 
-Fais une capture du nom et copie son texte (Outil Capture → **Actions de texte**, ou
-PowerToys **Text Extractor** avec `Windows + Maj + T`), puis colle-le avec un clic droit.
-Détails dans le [README](../README.md#nom-en-chinois-russe-impossible-à-taper-).
+Capturer le nom et copier son texte (Outil Capture → **Actions de texte**, ou PowerToys
+**Text Extractor** avec `Windows + Maj + T`), puis le coller avec un clic droit.
+Détails dans le [README](../README.md#noms-en-caractères-non-saisissables-chinois-russe).
 
 **« (classement indisponible) » au démarrage**
 
-Pas d'internet, ou le site du classement est en panne. Le carnet fonctionne quand même ;
-tape `refresh` plus tard.
+Pas d'internet, ou le site du classement est en panne. Le carnet reste utilisable ;
+relancer avec `refresh` plus tard.
 
-**« Ton carnet est illisible »**
+**« Carnet illisible »**
 
 Le fichier `carnet.json` est abîmé (ou n'est pas un carnet). Le message donne son chemin et
-la raison. Le fichier n'est jamais modifié : corrige-le, ou renomme-le pour repartir d'un
-carnet vide. La fenêtre reste ouverte jusqu'à ce que tu appuies sur Entrée.
+la raison. Le fichier n'est jamais modifié : le corriger, ou le renommer pour repartir d'un
+carnet vide. La fenêtre reste ouverte jusqu'à l'appui sur Entrée.
 
 **« Erreur inattendue »**
 
 Le détail technique est écrit dans `erreur.log`, dans le même dossier que `carnet.json`
-(le message indique le chemin exact ; en général `%APPDATA%\superselection`). Envoie ce
-fichier pour qu'on corrige.
+(le message indique le chemin exact ; en général `%APPDATA%\superselection`). Joindre ce
+fichier à tout signalement.
 
 **Le script échoue**
 
@@ -99,7 +97,7 @@ Installation manuelle, en deux commandes :
 winget install --id=astral-sh.uv -e
 ```
 
-Ferme et rouvre PowerShell, puis :
+Fermer et rouvrir PowerShell, puis :
 
 ```powershell
 uv tool install https://github.com/antbou/super_selection/archive/refs/heads/main.zip

@@ -66,5 +66,5 @@ def aide_traits() -> str:
     lignes = ["Traits possibles (Tab les complète) :"]
     for t in TAGS:
         lignes.append(f"  {t.emoji}  {t.nom:<11} {t.sens}")
-    lignes.append("Seuls ces mots sont acceptés ; tu peux en mettre plusieurs : « aggressive, tryhard ». Le reste va dans ta note perso.")
+    lignes.append("Seuls ces mots sont acceptés ; plusieurs sont possibles : « aggressive, tryhard ». Le reste va dans la note perso.")
     return "\n".join(lignes)
