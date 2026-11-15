@@ -145,7 +145,12 @@ class Carnet:
 
     @classmethod
     def charger(cls, chemin: Path) -> "Carnet":
-        return cls.depuis_dict(json.loads(Path(chemin).read_text(encoding="utf-8")))
+        try:
+            # OSError (dont FileNotFoundError) remonte ; le reste est un fichier invalide
+            brut = json.loads(Path(chemin).read_text(encoding="utf-8"))
+        except ValueError as erreur:  # JSONDecodeError, UnicodeDecodeError
+            raise CarnetInvalide(f"JSON invalide : {erreur}") from erreur
+        return cls.depuis_dict(brut)
 
 
 def _lire_joueur(numero: int, brut) -> Joueur:

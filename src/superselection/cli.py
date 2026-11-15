@@ -6,6 +6,7 @@ import builtins
 import os
 import re
 import sys
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -14,10 +15,11 @@ from typing import Callable
 from platformdirs import user_cache_dir, user_data_dir
 
 from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
-from .carnet import Carnet
+from .carnet import Carnet, CarnetInvalide
 from .classement import MODES, charger_classement, fetch_http
 from .couleurs import colorer_aide, peindre
 from .styles import aide_styles, tags_commencant_par
+from .texte import sans_controle
 from .version import fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
 
 Demander = Callable[[str, str], str]  # (question, valeur par défaut) -> réponse
@@ -175,8 +177,77 @@ def _session(app: App):
     return PromptSession(completer=Completeur(), complete_while_typing=True), CompleteurStyle()
 
 
+def _attendre_fermeture() -> None:
+    """Garde la fenêtre ouverte (raccourci Windows) pour que l'erreur reste lisible."""
+    if sys.stdin.isatty():
+        try:
+            input("Appuie sur Entrée pour fermer…")
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+
 def main(argv: list | None = None) -> None:
-    argv = sys.argv[1:] if argv is None else argv
+    try:
+        _principal(sys.argv[1:] if argv is None else argv)
+    except CarnetInvalide as erreur:
+        _echec_carnet(erreur)
+    except Exception as erreur:  # dernier filet : jamais de traceback brut devant l'utilisateur
+        _echec_inattendu(erreur)
+
+
+def _echec_carnet(erreur: Exception) -> None:
+    afficher(c(f"Ton carnet est illisible : {dossiers()[0] / 'carnet.json'}", "erreur"))
+    afficher(f"  {erreur}")
+    afficher("Corrige ce fichier ou renomme-le pour repartir d'un carnet vide.")
+    _attendre_fermeture()
+    sys.exit(1)
+
+
+def _echec_inattendu(erreur: Exception) -> None:
+    afficher(c(f"Erreur inattendue : {type(erreur).__name__} : {erreur}", "erreur"))
+    journal = dossiers()[0] / "erreur.log"
+    try:
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text(
+            "".join(traceback.format_exception(type(erreur), erreur, erreur.__traceback__)),
+            encoding="utf-8",
+        )
+        afficher(f"Détail écrit dans : {journal}")
+    except OSError:
+        pass
+    _attendre_fermeture()
+    sys.exit(1)
+
+
+def _charger_carnet(chemin_carnet: Path, interactif: bool) -> Carnet | None:
+    """Le carnet existant, un carnet neuf après le premier lancement, ou None si on doit sortir."""
+    if chemin_carnet.exists():
+        try:
+            return Carnet.charger(chemin_carnet)
+        except OSError as erreur:
+            raise CarnetInvalide(str(erreur)) from erreur
+    if not interactif:
+        afficher(
+            "Premier lancement : lance « superselection » dans un terminal pour choisir ton pseudo."
+        )
+        sys.exit(1)
+    afficher("Bienvenue ! Premier lancement.")
+    pseudo = ""
+    while not pseudo:
+        try:
+            pseudo = sans_controle(
+                input("Ton pseudo (il signe tes notes quand tu partages ton carnet) : ")
+            ).strip()
+        except (KeyboardInterrupt, EOFError):
+            afficher("")
+            return None
+    carnet = Carnet(auteur=pseudo)
+    carnet.sauver(chemin_carnet)
+    afficher(c(f"Carnet créé : {chemin_carnet}", "ok"))
+    return carnet
+
+
+def _principal(argv: list) -> None:
     for flux in (sys.stdout, sys.stderr):
         try:
             flux.reconfigure(errors="replace")  # vieille console Windows : pas de crash sur 妮蔻
@@ -190,16 +261,9 @@ def main(argv: list | None = None) -> None:
     chemin_carnet = donnees / "carnet.json"
     interactif = sys.stdin.isatty()
 
-    if chemin_carnet.exists():
-        carnet = Carnet.charger(chemin_carnet)
-    else:
-        afficher("Bienvenue ! Premier lancement.")
-        pseudo = ""
-        while not pseudo:
-            pseudo = input("Ton pseudo (il signe tes notes quand tu partages ton carnet) : ").strip()
-        carnet = Carnet(auteur=pseudo)
-        carnet.sauver(chemin_carnet)
-        afficher(c(f"Carnet créé : {chemin_carnet}", "ok"))
+    carnet = _charger_carnet(chemin_carnet, interactif)
+    if carnet is None:
+        return
 
     afficher("Chargement du classement top 100…", end=" ", flush=True)
     with ThreadPoolExecutor(max_workers=1) as fond:  # vérifie la version pendant le chargement

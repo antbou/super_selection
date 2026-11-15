@@ -180,3 +180,10 @@ def test_charger_json_casse(tmp_path):
     chemin.write_text("{", encoding="utf-8")
     with pytest.raises(ValueError):
         Carnet.charger(chemin)
+
+
+def test_charger_fichier_binaire(tmp_path):
+    chemin = tmp_path / "c.json"
+    chemin.write_bytes(b"\xff\xfe\x00")
+    with pytest.raises(CarnetInvalide):
+        Carnet.charger(chemin)
