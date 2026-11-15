@@ -72,17 +72,14 @@ def _noter(app: App, nom: str, reponse: str) -> None:
 
 
 def _questions(app: App, nom: str, demander: Demander) -> None:
-    """Demande le trait puis la note perso ; Ctrl+C / Ctrl+D : on garde tout."""
+    """Demande le trait puis la note perso. Ctrl+C / Ctrl+D remontent : l'appelant annule la transaction."""
     actuel = app.mon_trait(nom)
     question = (
         "  Nouveau trait ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
         if actuel
         else "  Son trait ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
     )
-    try:
-        reponse = demander(question, "", genre="trait").strip()
-    except (KeyboardInterrupt, EOFError):
-        return
+    reponse = demander(question, "", genre="trait").strip()
     if reponse == "-" and actuel:
         app.noter(nom, "")
         afficher("  " + c("Trait effacé.", "ok"))
@@ -94,10 +91,7 @@ def _questions(app: App, nom: str, demander: Demander) -> None:
         if memo
         else "  Une note ? " + c("(texte libre privé, Entrée = passer)", "info") + " > "
     )
-    try:
-        reponse = demander(question, "", genre="texte").strip()
-    except (KeyboardInterrupt, EOFError):
-        return
+    reponse = demander(question, "", genre="texte").strip()
     if reponse == "-" and memo:
         afficher("  " + app.memoriser(nom, ""))
     elif reponse and reponse != "-" and reponse != memo:
@@ -105,30 +99,37 @@ def _questions(app: App, nom: str, demander: Demander) -> None:
 
 
 def _editer(app: App, nom: str, demander: Demander) -> None:
-    """Fiche puis nom, trait et note déjà remplis : Entrée garde, on corrige sur place, vide = effacer."""
+    """Fiche puis nom, trait et note déjà remplis : Entrée garde, on corrige sur place, vide = effacer.
+    Tout ou rien : l'appelant annule si on interrompt."""
     afficher(app.modifier(nom))
     if app.carnet.trouver(nom) is None:
         return
+    nouveau = demander("  Nom   > ", nom, genre="nom").strip()
+    if nouveau and nouveau != nom:
+        afficher("  " + app.renommer(nom, nouveau))
+        if (joueur := app.carnet.trouver(nouveau)) is not None and app.carnet.trouver(nom) is None:
+            nom = joueur.nom
+    trait = app.mon_trait(nom)
+    reponse = demander("  Trait > ", trait, genre="trait").strip()
+    if reponse == "-":  # comme à la rencontre : « - » efface
+        reponse = ""
+    if reponse != trait:
+        _noter(app, nom, reponse)
+    memo = app.mon_memo(nom)
+    reponse = demander("  Note  > ", memo, genre="texte").strip()
+    if reponse == "-":
+        reponse = ""
+    if reponse != memo:
+        afficher("  " + app.memoriser(nom, reponse))
+
+
+def _en_transaction(app: App, action: Callable[[], None]) -> None:
+    """Ctrl+C / Ctrl+D pendant la saisie : on annule tout ce que l'action a changé (ADR 0018)."""
     try:
-        nouveau = demander("  Nom   > ", nom, genre="nom").strip()
-        if nouveau and nouveau != nom:
-            afficher("  " + app.renommer(nom, nouveau))
-            if (joueur := app.carnet.trouver(nouveau)) is not None and app.carnet.trouver(nom) is None:
-                nom = joueur.nom
-        trait = app.mon_trait(nom)
-        reponse = demander("  Trait > ", trait, genre="trait").strip()
-        if reponse == "-":  # comme à la rencontre : « - » efface
-            reponse = ""
-        if reponse != trait:
-            _noter(app, nom, reponse)
-        memo = app.mon_memo(nom)
-        reponse = demander("  Note  > ", memo, genre="texte").strip()
-        if reponse == "-":
-            reponse = ""
-        if reponse != memo:
-            afficher("  " + app.memoriser(nom, reponse))
+        with app.transaction():
+            action()
     except (KeyboardInterrupt, EOFError):
-        return  # Ctrl+C / Ctrl+D : on garde ce qui est déjà enregistré
+        afficher(c("Annulé : rien n'a été enregistré.", "info"))
 
 
 def executer(app: App, ligne: str, demander: Demander) -> bool:
@@ -177,7 +178,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         if not argument:
             afficher(c("Indique un nom.  ex : edit [IMP] Pizza", "info"))
             return True
-        _editer(app, app.nom_canonique(argument), demander)
+        _en_transaction(app, lambda: _editer(app, app.nom_canonique(argument), demander))
     elif commande == "rename":
         afficher(c("`rename` n'existe plus : utilise « edit <nom> » pour changer un nom.", "info"))
     elif commande == "export":
@@ -217,8 +218,12 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         if not argument:
             afficher(c("Indique un nom.  ex : player list", "info"))
             return True
-        afficher(app.croiser(argument))
-        _questions(app, app.nom_canonique(argument), demander)
+
+        def rencontre():
+            afficher(app.croiser(argument))
+            _questions(app, app.nom_canonique(argument), demander)
+
+        _en_transaction(app, rencontre)
     return True
 
 

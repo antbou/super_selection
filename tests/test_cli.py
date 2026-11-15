@@ -86,18 +86,19 @@ def _trait(app, nom):
 
 
 @pytest.mark.parametrize("erreur", [KeyboardInterrupt, EOFError])
-def test_ctrl_c_ou_ctrl_d_sur_le_trait_garde_tout(tmp_path, erreur):
+def test_ctrl_c_ou_ctrl_d_sur_le_trait_annule_tout_le_nouveau_joueur(tmp_path, erreur, capsys):
     app = nouvelle_app(tmp_path)
 
     def demander(question, defaut, genre="texte"):
         raise erreur
 
     assert cli.executer(app, "Bob", demander) is True
-    assert app.carnet.trouver("Bob").rencontres == 1
-    assert _trait(app, "Bob") is None
+    assert app.carnet.trouver("Bob") is None  # ni rencontre, ni joueur
+    assert "Annulé" in capsys.readouterr().out
+    assert not app.chemin_carnet.exists()  # rien n'a été écrit
 
 
-def test_ctrl_c_sur_le_trait_garde_le_trait_actuel(tmp_path):
+def test_ctrl_c_sur_le_trait_annule_la_rencontre_et_garde_le_trait_actuel(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     app.noter("Bob", "noob")
@@ -107,6 +108,7 @@ def test_ctrl_c_sur_le_trait_garde_le_trait_actuel(tmp_path):
 
     assert cli.executer(app, "Bob", demander) is True
     assert _trait(app, "Bob") == "noob"
+    assert app.carnet.trouver("Bob").rencontres == 1
 
 
 def test_trait_saisi_est_enregistre(tmp_path):
@@ -278,9 +280,9 @@ def test_croiser_note_vide_ou_tiret(tmp_path):
     assert app.mon_memo("Bob") == ""
 
 
-def test_croiser_ctrl_c_sur_la_note_garde_tout(tmp_path):
+def test_croiser_ctrl_c_sur_la_note_annule_aussi_le_trait(tmp_path):
     app = nouvelle_app(tmp_path)
-    app.memoriser("Bob", "ancienne")
+    app.memoriser("Bob", "ancienne")  # Bob existe déjà (0 rencontre)
 
     def demander(question, defaut, genre="texte"):
         if "note" in question.casefold():
@@ -288,8 +290,45 @@ def test_croiser_ctrl_c_sur_la_note_garde_tout(tmp_path):
         return "noob"
 
     cli.executer(app, "Bob", demander)
-    assert _trait(app, "Bob") == "noob"
+    assert _trait(app, "Bob") is None
+    assert app.carnet.trouver("Bob").rencontres == 0
     assert app.mon_memo("Bob") == "ancienne"
+    assert "noob" not in app.chemin_carnet.read_text(encoding="utf-8")
+
+
+def test_edit_ctrl_c_annule_renommage_et_trait(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Pizza")
+    app.noter("Pizza", "noob")
+    reponses = iter(["Pasta", "pro"])
+
+    def demander(question, defaut, genre="texte"):
+        try:
+            return next(reponses)
+        except StopIteration:
+            raise KeyboardInterrupt
+
+    cli.executer(app, "edit Pizza", demander)
+    assert app.carnet.trouver("Pasta") is None
+    assert _trait(app, "Pizza") == "noob"
+    assert "Pasta" not in app.chemin_carnet.read_text(encoding="utf-8")
+
+
+def test_erreur_inattendue_pendant_la_saisie_annule_aussi(tmp_path):
+    app = nouvelle_app(tmp_path)
+
+    def demander(question, defaut, genre="texte"):
+        raise RuntimeError("boum")
+
+    with pytest.raises(RuntimeError):
+        cli.executer(app, "Bob", demander)
+    assert app.carnet.trouver("Bob") is None
+
+
+def test_saisie_complete_est_enregistree_une_fois_validee(tmp_path):
+    app = nouvelle_app(tmp_path)
+    cli.executer(app, "Bob", lambda q, d, genre="texte": "noob")
+    assert "Bob" in app.chemin_carnet.read_text(encoding="utf-8")
 
 
 def test_top_commande_non_interactive(tmp_path, capsys):

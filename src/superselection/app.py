@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
 
@@ -107,6 +109,30 @@ class App:
         self.couleur = couleur
         self.saison_passee = saison_passee
         self._saisons_passees: dict = {}  # numéro de saison -> Classement | None, pour la session
+        self._transactions = 0  # > 0 : les commandes modifient la mémoire, rien n'est écrit sur disque
+
+    def _sauver(self) -> None:
+        if not self._transactions:
+            self.carnet.sauver(self.chemin_carnet)
+
+    @contextmanager
+    def transaction(self):
+        """Tout ou rien (ADR 0018) : à la sortie normale on écrit le carnet une fois ; sur
+        n'importe quelle exception (Ctrl+C, Ctrl+D, bug) le carnet revient à son état d'entrée,
+        mémoire et disque, puis l'exception repart."""
+        instantane = copy.deepcopy(self.carnet.__dict__)
+        avant = self.carnet.vers_dict()
+        self._transactions += 1
+        try:
+            yield
+        except BaseException:
+            self.carnet.__dict__.clear()
+            self.carnet.__dict__.update(instantane)
+            raise
+        finally:
+            self._transactions -= 1
+        if not self._transactions and self.carnet.vers_dict() != avant:
+            self.carnet.sauver(self.chemin_carnet)
 
     def _c(self, texte: str, role: str) -> str:
         return peindre(texte, role, self.couleur)
@@ -221,7 +247,7 @@ class App:
         joueur = self.carnet.croiser(nom, quand=self.maintenant())
         deja_compte = joueur.rencontres == avant
         if not deja_compte:
-            self.carnet.sauver(self.chemin_carnet)
+            self._sauver()
         fiche = self._fiche(joueur.nom, joueur, vient_de_croiser=True, deja_compte=deja_compte)
         if inconnu:
             fiche += "\n  " + self._c("Nouveau joueur.", "info")
@@ -287,7 +313,7 @@ class App:
         self.carnet.memoriser(nom, texte)
         if self.carnet.trouver(nom) is None:
             return self._c("Rien à effacer : joueur absent du carnet.", "info")
-        self.carnet.sauver(self.chemin_carnet)
+        self._sauver()
         if self.mon_memo(nom):
             return self._c(f"Note enregistrée pour {nom}.", "ok")
         return self._c(f"Note effacée pour {nom}.", "ok")
@@ -301,19 +327,19 @@ class App:
             mots = ", ".join(f"« {m} »" for m in inconnus)
             return self._c(f"Trait refusé : {mots} inconnu(s). ", "erreur") + "\n" + aide_traits()
         self.carnet.noter(self.nom_canonique(nom), canonique, maintenant=self.maintenant())
-        self.carnet.sauver(self.chemin_carnet)
+        self._sauver()
         return ""
 
     def supprimer(self, nom: str) -> str:
         joueur = self.carnet.supprimer(nom.strip())
         if joueur is None:
             return self._c(f"« {nom.strip()} » n'est pas dans ton carnet.", "erreur")
-        self.carnet.sauver(self.chemin_carnet)
+        self._sauver()
         return self._c(f"{joueur.nom} retiré du carnet.", "ok")
 
     def vider(self) -> str:
         nombre = self.carnet.vider()
-        self.carnet.sauver(self.chemin_carnet)
+        self._sauver()
         return self._c(f"Carnet vidé ({nombre} joueur(s) retiré(s)). Ton pseudo est gardé.", "ok")
 
     def renommer(self, ancien: str, nouveau: str) -> str:
@@ -330,7 +356,7 @@ class App:
             self.carnet.renommer(ancien, nouveau)
         except ValueError:
             return self._c(f"« {nouveau} » existe déjà dans ton carnet : supprime l'un des deux d'abord.", "erreur")
-        self.carnet.sauver(self.chemin_carnet)
+        self._sauver()
         return self._c(f"{ancien} renommé en {nouveau}.", "ok")
 
     def liste(self) -> str:
@@ -375,7 +401,7 @@ class App:
                 f"Ce fichier n'est pas un carnet superselection : {source} ({erreur})", "erreur"
             )
         bilan = self.carnet.fusionner(autre)
-        self.carnet.sauver(self.chemin_carnet)
+        self._sauver()
         return (
             f"Carnet de {autre.auteur} fusionné : {bilan.joueurs_ajoutes} joueur(s) ajouté(s), "
             f"{bilan.traits_ajoutes} trait(s) ajouté(s), {bilan.traits_maj} trait(s) mis à jour. "
