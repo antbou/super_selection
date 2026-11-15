@@ -82,7 +82,7 @@ proches s'il y en a : une faute de frappe se corrige avec `delete` ou `edit` (qu
 | `show <nom>`       | voir sa fiche sans compter de rencontre          | `show Unloukee`      |
 | `list`             | tous les joueurs déjà croisés, du plus récent    | `list`               |
 | `delete <nom>`     | retirer un joueur du carnet (confirmation)       | `delete Pizza`       |
-| `edit <nom>`       | champs pré-remplis, sans compter            | `edit Pizza`         |
+| `edit <nom>`       | corriger nom, trait, note (« - » efface), sans compter | `edit Pizza` |
 | `traits`           | les mots-clés de trait et leurs emojis           | `traits`             |
 | `export <fichier>` | écrire ton carnet dans un fichier pour un pote   | `export antho.json`  |
 | `import <fichier>` | fusionner le carnet d'un pote dans le tien       | `import kevin.json`  |

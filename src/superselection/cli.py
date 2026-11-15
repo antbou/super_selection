@@ -117,10 +117,14 @@ def _editer(app: App, nom: str, demander: Demander) -> None:
                 nom = joueur.nom
         trait = app.mon_trait(nom)
         reponse = demander("  Trait > ", trait, genre="trait").strip()
+        if reponse == "-":  # comme à la rencontre : « - » efface
+            reponse = ""
         if reponse != trait:
             _noter(app, nom, reponse)
         memo = app.mon_memo(nom)
         reponse = demander("  Note  > ", memo, genre="texte").strip()
+        if reponse == "-":
+            reponse = ""
         if reponse != memo:
             afficher("  " + app.memoriser(nom, reponse))
     except (KeyboardInterrupt, EOFError):

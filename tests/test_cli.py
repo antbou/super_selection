@@ -393,3 +393,23 @@ def test_genres_des_questions(tmp_path):
     assert _genres(tmp_path, "reset") == ["texte"]
     assert _genres(tmp_path, "Bob") == ["trait", "texte"]
     assert _genres(tmp_path, "edit Bob") == ["nom", "trait", "texte"]
+
+
+def test_edit_tiret_efface_le_trait(tmp_path, capsys):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.noter("Bob", "noob")
+    reponses = iter(["Bob", "-", ""])
+    cli.executer(app, "edit Bob", lambda q, d, genre="texte": next(reponses))
+    sortie = capsys.readouterr().out
+    assert "Trait effacé." in sortie and "refusé" not in sortie
+    assert _trait(app, "Bob") is None
+
+
+def test_edit_tiret_efface_la_note(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.memoriser("Bob", "joue le soir")
+    reponses = iter(["Bob", "", "-"])
+    cli.executer(app, "edit Bob", lambda q, d, genre="texte": next(reponses))
+    assert app.mon_memo("Bob") == ""
