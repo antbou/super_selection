@@ -106,14 +106,17 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             afficher(c("Indique un nom.  ex : player list", "info"))
             return True
         afficher(app.croiser(argument))
-        nom = app._nom_canonique(argument)
+        nom = app.nom_canonique(argument)
         actuel = app.mon_style(nom)
         question = (
             "  Nouveau style ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
             if actuel
             else "  Son style ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
         )
-        reponse = demander(question, "").strip()
+        try:
+            reponse = demander(question, "").strip()
+        except (KeyboardInterrupt, EOFError):
+            reponse = ""  # Ctrl+C / Ctrl+D : on garde le style actuel
         if reponse == "-" and actuel:
             app.noter(nom, "")
             afficher("  " + c("Style effacé.", "ok"))

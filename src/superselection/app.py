@@ -128,7 +128,7 @@ class App:
             lignes.append(f"  Style ({self._c(qui, 'auteur')}) : " + self._c(decorer(note.texte), "style"))
         return "\n".join(lignes)
 
-    def _nom_canonique(self, nom: str) -> str:
+    def nom_canonique(self, nom: str) -> str:
         nom = nom.strip()
         if self.classement and (officiel := self.classement.nom_officiel(nom)):
             return officiel
@@ -139,13 +139,13 @@ class App:
     # --- commandes --------------------------------------------------------
 
     def croiser(self, nom: str) -> str:
-        nom = self._nom_canonique(nom)
+        nom = self.nom_canonique(nom)
         joueur = self.carnet.croiser(nom, jour=self.aujourd_hui())
         self.carnet.sauver(self.chemin_carnet)
         return self._fiche(joueur.nom, joueur, vient_de_croiser=True)
 
     def voir(self, nom: str) -> str:
-        nom = self._nom_canonique(nom)
+        nom = self.nom_canonique(nom)
         return self._fiche(nom, self.carnet.trouver(nom))
 
     def mon_style(self, nom: str) -> str:
@@ -154,7 +154,7 @@ class App:
         return note.texte if note else ""
 
     def noter(self, nom: str, texte: str) -> None:
-        self.carnet.noter(self._nom_canonique(nom), texte, maintenant=self.maintenant())
+        self.carnet.noter(self.nom_canonique(nom), texte, maintenant=self.maintenant())
         self.carnet.sauver(self.chemin_carnet)
 
     def liste(self) -> str:

@@ -72,3 +72,59 @@ def test_exception_inattendue_ecrit_erreur_log(isole, monkeypatch, capsys):
     journal = isole / "erreur.log"
     assert "RuntimeError" in journal.read_text(encoding="utf-8")
     assert str(journal) in sortie_texte
+
+
+# --- executer : saisie du style ------------------------------------------------
+
+from test_app import nouvelle_app
+
+
+def _style(app, nom):
+    joueur = app.carnet.trouver(nom)
+    note = joueur.styles.get("Antho") if joueur else None
+    return note.texte if note else None
+
+
+@pytest.mark.parametrize("erreur", [KeyboardInterrupt, EOFError])
+def test_ctrl_c_ou_ctrl_d_sur_le_style_garde_tout(tmp_path, erreur):
+    app = nouvelle_app(tmp_path)
+
+    def demander(question, defaut):
+        raise erreur
+
+    assert cli.executer(app, "Bob", demander) is True
+    assert app.carnet.trouver("Bob").rencontres == 1
+    assert _style(app, "Bob") is None
+
+
+def test_ctrl_c_sur_le_style_garde_le_style_actuel(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.noter("Bob", "rush")
+
+    def demander(question, defaut):
+        raise KeyboardInterrupt
+
+    assert cli.executer(app, "Bob", demander) is True
+    assert _style(app, "Bob") == "rush"
+
+
+def test_style_saisi_est_enregistre(tmp_path):
+    app = nouvelle_app(tmp_path)
+    cli.executer(app, "Bob", lambda q, d: "rush archers")
+    assert _style(app, "Bob") == "rush archers"
+
+
+def test_tiret_efface_le_style(tmp_path):
+    app = nouvelle_app(tmp_path)
+    cli.executer(app, "Bob", lambda q, d: "rush")
+    cli.executer(app, "Bob", lambda q, d: "-")
+    assert _style(app, "Bob") is None
+
+
+def test_reponse_vide_garde_le_style(tmp_path):
+    app = nouvelle_app(tmp_path)
+    cli.executer(app, "Bob", lambda q, d: "rush")
+    cli.executer(app, "Bob", lambda q, d: "")
+    assert _style(app, "Bob") == "rush"
+    assert app.carnet.trouver("Bob").rencontres == 2
