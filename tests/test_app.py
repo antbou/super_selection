@@ -51,7 +51,7 @@ def test_croiser_deux_fois_affiche_le_compteur_et_le_style(tmp_path):
     texte = app.croiser("bob")
     assert "1v1 : hors top 100" in texte
     assert "Croisé 2 fois" in texte
-    assert "Style (toi) : ⚡ rush" in texte
+    assert "Style (toi) : rush" in texte
 
 
 def test_voir_ne_compte_pas_de_rencontre(tmp_path):

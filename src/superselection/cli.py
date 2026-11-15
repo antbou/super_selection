@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -127,7 +128,7 @@ def _session(app: App):
         """Complète le dernier mot avec les mots-clés de style (aggressive, defence…)."""
 
         def get_completions(self, document, complete_event):
-            mot = document.get_word_before_cursor(WORD=True).lstrip(",;")
+            mot = re.search(r"\w*$", document.text_before_cursor).group(0)
             if not mot:
                 return
             for tag in tags_commencant_par(mot):

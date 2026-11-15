@@ -20,7 +20,7 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   list              tous les joueurs déjà croisés
   export <fichier>  envoyer ton carnet à un pote   ex : export antho.json
   import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
-  styles            les mots-clés de style et leurs emojis (🔥 aggressive, 🛡️ defence…)
+  styles            les mots-clés de style et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
   refresh           recharger le classement
   help              cette aide
   quit              sortir (ou Ctrl+D)

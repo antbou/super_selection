@@ -50,8 +50,8 @@ adversaire > Bob
 Bob
   1v1 : hors top 100   ·   2v2 : hors top 100
   Croisé 3 fois — dernière fois le 12/11/2026
-  Style (toi) : 🛡️ defence, 😴 passive
-  Style (Kevin) : 🔁 spam cavalerie
+  Style (toi) : 🛡️ defence, 😤 tryhard
+  Style (Kevin) : 🐣 noob, spam cavalerie
   Nouveau style ? (Tab = mots-clés, Entrée = garder, - = effacer) >
 ```
 
@@ -74,19 +74,20 @@ compter de rencontre : `show Bob`.
 
 ### Styles et emojis
 
-Le style est un texte libre, mais certains mots-clés reçoivent un emoji à l'affichage, et
-Tab les complète quand tu notes un style :
+Le style est un texte libre. Cinq mots-clés reçoivent un emoji à l'affichage, et Tab les
+complète quand tu notes un style :
 
-| | Mot-clé | | Mot-clé | | Mot-clé |
-|---|---|---|---|---|---|
-| 🔥 | `aggressive` | 🐢 | `turtle` | 👑 | `pro` |
-| ⚡ | `rush` | 💰 | `eco` | 🐣 | `noob` |
-| 🛡️ | `defence` | 🔁 | `spam` | 🎭 | `smurf` |
-| 😴 | `passive` | 🧀 | `cheese` | ☠️ | `toxic` |
-| 🎯 | `micro` | 🤝 | `team` | | |
+| Emoji | Mot-clé      | Sens                                   |
+|-------|--------------|----------------------------------------|
+| 🔥    | `aggressive` | attaque tout le temps                  |
+| 🛡️    | `defence`    | joue défensif, tient bien ses positions |
+| 🐣    | `noob`       | débutant / faible                      |
+| 😤    | `tryhard`    | joue à fond, ne lâche rien             |
+| 👑    | `pro`        | très fort                              |
 
-Les variantes courantes marchent aussi (`aggresive`, `defense`, `def`, `nul`, `agressif`…).
-`styles` affiche la liste complète avec leur sens.
+Tu peux en mettre plusieurs et ajouter du texte : `aggressive, tryhard, rush archers`
+s'affiche `🔥 aggressive, 😤 tryhard, rush archers`. Les variantes marchent aussi
+(`aggresive`, `agressif`, `defense`, `défense`, `def`, `nul`…).
 
 Un joueur s'appelle comme une commande ? Utilise `player list`.
 

@@ -15,20 +15,11 @@ class Tag:
 
 
 TAGS = (
-    Tag("aggressive", "🔥", "attaque tout le temps", ("aggresive", "agressive", "aggro", "agressif")),
-    Tag("rush", "⚡", "attaque très tôt", ("rusher", "early")),
-    Tag("defence", "🛡️", "joue défensif, tient bien ses positions", ("defense", "def", "defensive", "défensif", "defensif")),
-    Tag("passive", "😴", "attend, attaque peu", ("passif", "afk")),
-    Tag("turtle", "🐢", "s'enferme et construit", ("tortue",)),
-    Tag("eco", "💰", "mise sur l'économie", ("economy", "boom", "greedy")),
-    Tag("spam", "🔁", "spamme une seule unité", ()),
-    Tag("cheese", "🧀", "stratégie piège / surprise", ("cheesy",)),
-    Tag("micro", "🎯", "très bon contrôle des unités", ()),
-    Tag("pro", "👑", "très fort", ("strong", "fort", "good", "tryhard")),
-    Tag("noob", "🐣", "débutant / faible", ("nul", "bad", "newbie", "weak")),
-    Tag("smurf", "🎭", "compte secondaire d'un bon joueur", ()),
-    Tag("toxic", "☠️", "insulte / mauvais joueur", ("toxique", "troll")),
-    Tag("team", "🤝", "bon joueur d'équipe en 2v2", ("teamplay",)),
+    Tag("aggressive", "🔥", "attaque tout le temps", ("aggresive", "agressive", "aggro", "agro", "agressif")),
+    Tag("defence", "🛡️", "joue défensif, tient bien ses positions", ("defense", "def", "defensive", "défense", "défensif", "defensif")),
+    Tag("noob", "🐣", "débutant / faible", ("nul", "newbie", "bad")),
+    Tag("tryhard", "😤", "joue à fond, ne lâche rien", ("tryharder",)),
+    Tag("pro", "👑", "très fort", ("strong", "fort")),
 )
 
 _PAR_MOT = {}
@@ -58,5 +49,5 @@ def aide_styles() -> str:
     lignes = ["Mots-clés de style (Tab les complète quand tu notes un style) :"]
     for t in TAGS:
         lignes.append(f"  {t.emoji}  {t.nom:<11} {t.sens}")
-    lignes.append("Le style reste libre : tu peux écrire « aggressive, rush archers, noob en 2v2 ».")
+    lignes.append("Tu peux en mettre plusieurs et ajouter du texte : « aggressive, tryhard, rush archers ».")
     return "\n".join(lignes)
