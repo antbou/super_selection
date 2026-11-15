@@ -246,3 +246,19 @@ def test_memo_jamais_exporte_ni_fusionne(tmp_path):
     pote.trouver("Pizza").memo = "memo du pote"
     c.fusionner(pote)
     assert c.trouver("Pizza").memo == "privé"
+
+
+def test_fusion_compare_les_auteurs_sans_la_casse():
+    moi = Carnet(auteur="Antho")
+    v1 = Carnet(auteur="Kevin")
+    v1.croiser("Bob", quand="2026-11-10")
+    v1.noter("Bob", "noob", maintenant="2026-11-10T20:00")
+    moi.fusionner(v1)
+
+    v2 = Carnet(auteur="kevin")
+    v2.croiser("Bob", quand="2026-11-12")
+    v2.noter("Bob", "pro", maintenant="2026-11-12T20:00")
+    bilan = moi.fusionner(v2)
+    assert (bilan.traits_ajoutes, bilan.traits_maj) == (0, 1)
+    assert list(moi.trouver("Bob").traits) == ["Kevin"]
+    assert moi.trouver("Bob").traits["Kevin"].texte == "pro"

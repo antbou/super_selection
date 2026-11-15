@@ -121,7 +121,7 @@ class Carnet:
         """Ajoute les joueurs et les traits d'un autre carnet.
 
         Mes propres traits ne sont jamais écrasés ; le trait d'un autre auteur
-        n'est remplacée que par une version plus récente.
+        n'est remplacé que par une version plus récente.
         """
         bilan = Bilan()
         moi = self.auteur.casefold()
@@ -135,12 +135,14 @@ class Carnet:
             for auteur, note in sien.traits.items():
                 if auteur.casefold() == moi:
                     continue
-                actuelle = mien.traits.get(auteur)
+                # clé déjà écrite dans mon carnet, à la casse près (Kevin = kevin)
+                cle = next((a for a in mien.traits if a.casefold() == auteur.casefold()), auteur)
+                actuelle = mien.traits.get(cle)
                 if actuelle is None:
-                    mien.traits[auteur] = Note(note.texte, note.maj)
+                    mien.traits[cle] = Note(note.texte, note.maj)
                     bilan.traits_ajoutes += 1
                 elif note.maj > actuelle.maj and note.texte != actuelle.texte:
-                    mien.traits[auteur] = Note(note.texte, note.maj)
+                    mien.traits[cle] = Note(note.texte, note.maj)
                     bilan.traits_maj += 1
         return bilan
 
