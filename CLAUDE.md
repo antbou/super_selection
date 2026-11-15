@@ -17,6 +17,8 @@ l'utilisateur, le code (noms) et la doc sont en **français**.
 
 Vocabulaire : `GLOSSARY.md`. Utiliser ces termes dans le code et la doc.
 
+Décisions : `docs/adr/` (une décision par fichier, numérotée). Les lire avant de remettre un choix en cause ; ajouter un ADR quand une décision est difficile à défaire, surprenante, et issue d'un vrai compromis.
+
 ## Règles
 
 - TDD : écrire le test d'abord (`tests/`), le réseau est toujours injecté (`Fetcher`), jamais appelé en test.

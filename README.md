@@ -164,3 +164,4 @@ Publier une version : augmenter `version` dans `pyproject.toml` (puis `uv lock`)
 sur `main`. Les utilisateurs sont prévenus au lancement suivant.
 
 Vocabulaire du domaine : voir [GLOSSARY.md](GLOSSARY.md).
+Décisions et leurs raisons : [docs/adr/](docs/adr/).
