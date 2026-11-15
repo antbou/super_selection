@@ -91,6 +91,24 @@ s'affiche `🔥 aggressive, 😤 tryhard, rush archers`. Les variantes marchent 
 
 Un joueur s'appelle comme une commande ? Utilise `player list`.
 
+### Nom en chinois, russe… impossible à taper ?
+
+Copie le texte depuis une capture d'écran, puis colle-le dans l'outil :
+
+1. **Windows 11** : `Windows + Maj + S`, encadre le nom. Clique sur la notification
+   pour ouvrir la capture dans l'**Outil Capture**, puis **Actions de texte** →
+   **Copier tout le texte**.
+   *Plus rapide* : [PowerToys](https://aka.ms/installpowertoys) → **Text Extractor**,
+   `Windows + Maj + T`, encadre le nom, et le texte est copié directement.
+2. Dans superselection : clic droit (ou `Ctrl + V`) pour coller, puis Entrée.
+
+Astuce : si la reconnaissance se trompe sur un caractère, colle seulement une partie du
+nom puis appuie sur Tab. La complétion cherche dans tout le nom, donc elle retrouve le
+joueur dans le top 100 ou dans ton carnet.
+
+Pour le chinois ou le russe, Windows doit avoir la langue de reconnaissance installée :
+Paramètres → Heure et langue → Langue → Ajouter une langue (le module de base suffit).
+
 Tu peux aussi lancer une commande directement, sans la boucle :
 
 ```bash

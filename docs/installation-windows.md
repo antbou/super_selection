@@ -66,6 +66,12 @@ Le carnet reste dans `%APPDATA%\superselection` ; supprime ce dossier pour tout 
 Utilise **Windows Terminal** (inclus dans Windows 11, gratuit sur le Microsoft Store pour
 Windows 10). Si ça persiste : Paramètres → ton profil → Apparence → police **MS Gothic**.
 
+**Je n'arrive pas à taper un nom chinois ou russe**
+
+Fais une capture du nom et copie son texte (Outil Capture → **Actions de texte**, ou
+PowerToys **Text Extractor** avec `Windows + Maj + T`), puis colle-le avec un clic droit.
+Détails dans le [README](../README.md#nom-en-chinois-russe-impossible-à-taper-).
+
 **« (classement indisponible) » au démarrage**
 
 Pas d'internet, ou le site du classement est en panne. Le carnet fonctionne quand même ;
