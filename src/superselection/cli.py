@@ -18,7 +18,7 @@ from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet, CarnetInvalide
 from .classement import MODES, charger_classement, charger_saison, fetch_http
 from .couleurs import colorer_aide, peindre, sans_couleur
-from .traits import aide_traits, tags_commencant_par
+from .traits import aide_traits, tags_commencant_par, valider
 from .texte import sans_controle
 from .version import etat_version, fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
 
@@ -315,9 +315,9 @@ def _completeurs(app: App):
                 rangs.append(f"vu {joueur.rencontres}x")
             return " · ".join(rangs)
 
-        def _noms(self, fragment: str):
+        def _noms(self, fragment: str, parmi=None):
             cle = fragment.casefold()
-            trouves = [n for n in app.noms() if cle in n.casefold()]
+            trouves = [n for n in (app.noms() if parmi is None else parmi) if cle in n.casefold()]
             trouves.sort(key=lambda n: (not n.casefold().startswith(cle), n.casefold()))
             for nom in trouves[:40]:
                 yield Completion(nom, start_position=-len(fragment), display_meta=self._meta(nom))
@@ -328,7 +328,9 @@ def _completeurs(app: App):
             commande = COMMANDES.get(mot.casefold()) if espace else None
             if commande in ("import", "export"):
                 yield from chemins.get_completions(Document(reste), complete_event)
-            elif commande in ("show", "edit", "croiser", "delete"):
+            elif commande in ("edit", "delete"):  # seulement ce qui est dans le carnet
+                yield from self._noms(reste, [j.nom for j in app.carnet.joueurs])
+            elif commande in ("show", "croiser"):
                 yield from self._noms(reste)
             elif texte:
                 if not espace:
@@ -341,8 +343,12 @@ def _completeurs(app: App):
         """Complète le dernier mot avec les mots-clés de trait (aggressive, defence…)."""
 
         def get_completions(self, document, complete_event):
-            mot = re.search(r"\w*$", document.text_before_cursor).group(0)
+            avant = document.text_before_cursor
+            mot = re.search(r"\w*$", avant).group(0)
+            deja = valider(avant[: len(avant) - len(mot)])[0].split(", ")
             for tag in tags_commencant_par(mot):  # mot vide : les cinq, sans taper de lettre
+                if tag.nom in deja:
+                    continue
                 yield Completion(tag.nom, start_position=-len(mot), display_meta=f"{tag.emoji} {tag.sens}")
 
     class CompleteurNom(Completer):

@@ -352,6 +352,22 @@ def test_traits_proposes_des_le_debut_sans_taper_de_lettre(tmp_path):
     assert propositions == ["aggressive", "defence", "noob", "tryhard", "pro"]
     apres_virgule = [c.text for c in completeur_trait.get_completions(Document("noob, "), None)]
     assert "pro" in apres_virgule
+    assert "noob" not in apres_virgule  # déjà retenu
+
+
+def test_edit_et_delete_ne_proposent_que_les_noms_du_carnet(tmp_path):
+    from prompt_toolkit.document import Document
+
+    app = nouvelle_app(tmp_path)
+    app.croiser("Marco")
+    completeur, _, _ = cli._completeurs(app)
+
+    def propose(texte):
+        return [c.text for c in completeur.get_completions(Document(texte), None)]
+
+    assert propose("edit Un") == [] and propose("delete Un") == []
+    assert propose("edit Mar") == ["Marco"]
+    assert "Unloukee" in propose("show Un")
 
 
 def test_session_principale_garde_ses_noms_apres_une_question_de_trait(tmp_path):
