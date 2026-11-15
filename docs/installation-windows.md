@@ -79,6 +79,18 @@ Détails dans le [README](../README.md#nom-en-chinois-russe-impossible-à-taper-
 Pas d'internet, ou le site du classement est en panne. Le carnet fonctionne quand même ;
 tape `refresh` plus tard.
 
+**« Ton carnet est illisible »**
+
+Le fichier `carnet.json` est abîmé (ou n'est pas un carnet). Le message donne son chemin et
+la raison. Le fichier n'est jamais modifié : corrige-le, ou renomme-le pour repartir d'un
+carnet vide. La fenêtre reste ouverte jusqu'à ce que tu appuies sur Entrée.
+
+**« Erreur inattendue »**
+
+Le détail technique est écrit dans `erreur.log`, dans le même dossier que `carnet.json`
+(le message indique le chemin exact ; en général `%APPDATA%\superselection`). Envoie ce
+fichier pour qu'on corrige.
+
 **Le script échoue**
 
 Installation manuelle, en deux commandes :
