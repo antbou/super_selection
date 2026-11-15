@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import os
 import re
 import sys
@@ -14,6 +15,7 @@ from platformdirs import user_cache_dir, user_data_dir
 from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet
 from .classement import MODES, charger_classement, fetch_http
+from .couleurs import colorer_aide, peindre
 from .styles import aide_styles, tags_commencant_par
 
 Demander = Callable[[str, str], str]  # (question, valeur par défaut) -> réponse
@@ -37,6 +39,29 @@ def aujourd_hui() -> str:
     return datetime.now().date().isoformat()
 
 
+_COULEUR = False  # activé par main() si le terminal le permet
+
+
+def couleur_possible() -> bool:
+    return sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
+
+def afficher(*morceaux, end: str = "\n", flush: bool = False) -> None:
+    """print() qui passe par prompt_toolkit en couleur (marche aussi sur les vieilles consoles Windows)."""
+    texte = " ".join(str(m) for m in morceaux)
+    if _COULEUR:
+        from prompt_toolkit import print_formatted_text
+        from prompt_toolkit.formatted_text import ANSI
+
+        print_formatted_text(ANSI(texte), end=end, flush=flush)
+    else:
+        builtins.print(texte, end=end, flush=flush)
+
+
+def c(texte: str, role: str) -> str:
+    return peindre(texte, role, _COULEUR)
+
+
 def executer(app: App, ligne: str, demander: Demander) -> bool:
     """Exécute une ligne. Renvoie False pour quitter."""
     commande, argument = analyser(ligne)
@@ -45,41 +70,41 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
     if commande == "quit":
         return False
     if commande == "help":
-        print(AIDE)
+        afficher(colorer_aide(AIDE) if _COULEUR else AIDE)
     elif commande == "styles":
-        print(aide_styles())
+        afficher(aide_styles())
     elif commande == "list":
-        print(app.liste())
+        afficher(app.liste())
     elif commande == "export":
-        print(app.exporter(argument))
+        afficher(app.exporter(argument))
     elif commande == "import":
-        print(app.importer(argument))
+        afficher(app.importer(argument))
     elif commande == "refresh":
         app.classement, message = charger_classement(
             dossiers()[1] / "classement.json", fetch_http, maintenant()
         )
-        print(message or f"Classement rechargé (saison {app.classement.saison}).")
+        afficher(c(message, "erreur") if message else c(f"Classement rechargé (saison {app.classement.saison}).", "ok"))
     elif commande == "show":
-        print(app.voir(argument) if argument else "Indique un nom.  ex : show [IMP] Pizza")
+        afficher(app.voir(argument) if argument else c("Indique un nom.  ex : show [IMP] Pizza", "info"))
     elif commande == "croiser":
         if not argument:
-            print("Indique un nom.  ex : player list")
+            afficher(c("Indique un nom.  ex : player list", "info"))
             return True
-        print(app.croiser(argument))
+        afficher(app.croiser(argument))
         nom = app._nom_canonique(argument)
         actuel = app.mon_style(nom)
         question = (
-            "  Nouveau style ? (Tab = mots-clés, Entrée = garder, - = effacer) > "
+            "  Nouveau style ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
             if actuel
-            else "  Son style ? (Tab = mots-clés, Entrée = passer) > "
+            else "  Son style ? " + c("(Tab = mots-clés, Entrée = passer)", "info") + " > "
         )
         reponse = demander(question, "").strip()
         if reponse == "-" and actuel:
             app.noter(nom, "")
-            print("  Style effacé.")
+            afficher("  " + c("Style effacé.", "ok"))
         elif reponse and reponse != "-" and reponse != actuel:
             app.noter(nom, reponse)
-            print("  Style enregistré.")
+            afficher("  " + c("Style enregistré.", "ok"))
     return True
 
 
@@ -145,6 +170,9 @@ def main(argv: list | None = None) -> None:
         except AttributeError:
             pass
 
+    global _COULEUR
+    _COULEUR = couleur_possible()
+
     donnees, cache = dossiers()
     chemin_carnet = donnees / "carnet.json"
     interactif = sys.stdin.isatty()
@@ -152,25 +180,29 @@ def main(argv: list | None = None) -> None:
     if chemin_carnet.exists():
         carnet = Carnet.charger(chemin_carnet)
     else:
-        print("Bienvenue ! Premier lancement.")
+        afficher("Bienvenue ! Premier lancement.")
         pseudo = ""
         while not pseudo:
             pseudo = input("Ton pseudo (il signe tes notes quand tu partages ton carnet) : ").strip()
         carnet = Carnet(auteur=pseudo)
         carnet.sauver(chemin_carnet)
-        print(f"Carnet créé : {chemin_carnet}")
+        afficher(c(f"Carnet créé : {chemin_carnet}", "ok"))
 
-    print("Chargement du classement top 100…", end=" ", flush=True)
+    afficher("Chargement du classement top 100…", end=" ", flush=True)
     classement, message = charger_classement(cache / "classement.json", fetch_http, maintenant())
-    print(message or f"saison {classement.saison} OK.")
+    afficher(c(message, "erreur") if message else c(f"saison {classement.saison} OK.", "ok"))
 
-    app = App(carnet, chemin_carnet, classement, aujourd_hui=aujourd_hui, maintenant=maintenant)
+    app = App(
+        carnet, chemin_carnet, classement, aujourd_hui=aujourd_hui, maintenant=maintenant, couleur=_COULEUR
+    )
 
     if interactif:
+        from prompt_toolkit.formatted_text import ANSI
+
         session, completeur_style = _session(app)
 
         def demander(question: str, defaut: str) -> str:
-            return session.prompt(question, default=defaut, completer=completeur_style)
+            return session.prompt(ANSI(question), default=defaut, completer=completeur_style)
 
     else:
 
@@ -187,17 +219,17 @@ def main(argv: list | None = None) -> None:
                 break
         return
 
-    print("Tape un nom de joueur (Tab pour compléter), « help » pour les commandes.")
+    afficher("Tape un nom de joueur " + c("(Tab pour compléter)", "info") + ", « " + c("help", "commande") + " » pour les commandes.")
     while True:
         try:
-            ligne = session.prompt("adversaire > ")
+            ligne = session.prompt(ANSI(c("adversaire", "invite") + " > "))
         except KeyboardInterrupt:
             continue
         except EOFError:
             break
         if not executer(app, ligne, demander):
             break
-    print("À plus !")
+    afficher("À plus !")
 
 
 if __name__ == "__main__":
