@@ -146,13 +146,27 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         try:
             reponse = demander(question, "").strip()
         except (KeyboardInterrupt, EOFError):
-            reponse = ""  # Ctrl+C / Ctrl+D : on garde le style actuel
+            return True  # Ctrl+C / Ctrl+D : on garde tout
         if reponse == "-" and actuel:
             app.noter(nom, "")
             afficher("  " + c("Style effacé.", "ok"))
         elif reponse and reponse != "-" and reponse != actuel:
             app.noter(nom, reponse)
             afficher("  " + c("Style enregistré.", "ok"))
+        memo = app.mon_memo(nom)
+        question = (
+            "  Nouvelle note ? " + c("(texte privé, Entrée = garder, - = effacer)", "info") + " > "
+            if memo
+            else "  Une note ? " + c("(texte libre privé, Entrée = passer)", "info") + " > "
+        )
+        try:
+            reponse = demander(question, "").strip()
+        except (KeyboardInterrupt, EOFError):
+            return True
+        if reponse == "-" and memo:
+            afficher("  " + app.memoriser(nom, ""))
+        elif reponse and reponse != "-" and reponse != memo:
+            afficher("  " + app.memoriser(nom, reponse))
     return True
 
 

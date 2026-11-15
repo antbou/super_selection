@@ -222,3 +222,27 @@ def test_sauver_abandonne_et_nettoie_le_tmp(tmp_path, monkeypatch):
     with pytest.raises(PermissionError):
         Carnet(auteur="Antho").sauver(chemin)
     assert not (tmp_path / "c.json.tmp").exists()
+
+
+def test_memo_enregistre_efface_et_survit_au_fichier(tmp_path):
+    c = Carnet(auteur="Antho")
+    c.memoriser("Pizza", "  m'a insulté, rush à 3 min  ")
+    assert c.trouver("pizza").memo == "m'a insulté, rush à 3 min"
+    c.sauver(tmp_path / "c.json")
+    assert Carnet.charger(tmp_path / "c.json").trouver("Pizza").memo == "m'a insulté, rush à 3 min"
+    c.memoriser("Pizza", "")
+    assert c.trouver("Pizza").memo == ""
+    assert "memo" not in c.vers_dict()["joueurs"][0]
+
+
+def test_memo_jamais_exporte_ni_fusionne(tmp_path):
+    c = Carnet(auteur="Antho")
+    c.memoriser("Pizza", "privé")
+    c.sauver(tmp_path / "export.json", avec_memos=False)
+    assert "privé" not in (tmp_path / "export.json").read_text(encoding="utf-8")
+
+    pote = Carnet(auteur="Kevin")
+    pote.noter("Pizza", "rush", maintenant="2026-11-15T20:00")
+    pote.trouver("Pizza").memo = "memo du pote"
+    c.fusionner(pote)
+    assert c.trouver("Pizza").memo == "privé"

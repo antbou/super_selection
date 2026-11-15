@@ -12,6 +12,7 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
   les rencontres du propriétaire du carnet, jamais celles d'un pote.
 - **Style** (`Note`) : texte libre court qui décrit la façon de jouer d'un joueur (« aggressive,
   rush archers »). Un joueur a au plus un style par **auteur**.
+- **Note perso** (`Joueur.memo`, proposée après le style à chaque rencontre) : texte libre privé du propriétaire sur un joueur. Une seule par joueur ; jamais exportée ni fusionnée (ADR 0014). À ne pas confondre avec le **style** (classe `Note`, partagé).
 - **Mot-clé de style** (`Tag`, `styles.py`) : mot reconnu dans un style (`aggressive`, `defence`,
   `noob`…), affiché avec son emoji. Le texte est stocké sans emoji ; l'emoji est ajouté à l'affichage.
 - **Classement** (`Classement`) : le top 100 officiel d'une **saison**, en 1v1 et en 2v2, lu sur

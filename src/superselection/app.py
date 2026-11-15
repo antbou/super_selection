@@ -13,7 +13,7 @@ from .texte import sans_controle
 
 AIDE = """\
 Tape le nom d'un adversaire : je te dis s'il est dans le top 100, je compte
-la rencontre, puis tu notes son style (Entrée = garder, « - » = effacer).
+la rencontre, puis tu notes son style et une note perso (Entrée = garder, « - » = effacer).
 Tab complète les noms (top 100 + joueurs déjà croisés).
 
   <nom>             croiser un joueur              ex : [IMP] Pizza
@@ -172,6 +172,8 @@ class App:
             lignes.append(
                 f"  Croisé {joueur.rencontres} fois — dernière fois le {_date_fr(joueur.derniere)}"
             )
+        if joueur and joueur.memo:
+            lignes.append("  Note : " + joueur.memo)
         styles = joueur.styles if joueur else {}
         if not styles:
             lignes.append("  Style : " + self._c("pas encore noté", "info"))
@@ -222,6 +224,20 @@ class App:
         note = joueur.styles.get(self.carnet.auteur) if joueur else None
         return note.texte if note else ""
 
+    def mon_memo(self, nom: str) -> str:
+        joueur = self.carnet.trouver(nom)
+        return joueur.memo if joueur else ""
+
+    def memoriser(self, nom: str, texte: str) -> str:
+        nom = self.nom_canonique(nom)
+        self.carnet.memoriser(nom, texte)
+        if self.carnet.trouver(nom) is None:
+            return self._c("Rien à effacer : joueur absent du carnet.", "info")
+        self.carnet.sauver(self.chemin_carnet)
+        if self.mon_memo(nom):
+            return self._c(f"Note enregistrée pour {nom}.", "ok")
+        return self._c(f"Note effacée pour {nom}.", "ok")
+
     def noter(self, nom: str, texte: str) -> None:
         self.carnet.noter(self.nom_canonique(nom), texte, maintenant=self.maintenant())
         self.carnet.sauver(self.chemin_carnet)
@@ -256,7 +272,7 @@ class App:
         return self._c(f"{ancien} renommé en {nouveau}.", "ok")
 
     def liste(self) -> str:
-        joueurs = [j for j in self.carnet.recents() if j.rencontres or j.styles]
+        joueurs = [j for j in self.carnet.recents() if j.rencontres or j.styles or j.memo]
         if not joueurs:
             return "Aucun joueur dans ton carnet pour l'instant."
         largeur = min(max(len(j.nom) for j in joueurs), 30)
@@ -277,7 +293,7 @@ class App:
         if cible.suffix == "":
             cible = cible.with_suffix(".json")
         try:
-            self.carnet.sauver(cible)
+            self.carnet.sauver(cible, avec_memos=False)
         except OSError as erreur:
             return self._c(f"Impossible d'écrire {cible} : {erreur.strerror or erreur}", "erreur")
         return f"Carnet exporté dans {cible.resolve()} — envoie ce fichier à ton pote."

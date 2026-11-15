@@ -1,6 +1,6 @@
 [project]
 name = "superselection"
-version = "0.5.0"
+version = "0.6.0"
 description = "Carnet d'adversaires pour War Selection : rang dans le top 100 et style de jeu."
 readme = "README.md"
 requires-python = ">=3.10"

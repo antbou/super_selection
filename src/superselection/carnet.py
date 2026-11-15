@@ -32,6 +32,7 @@ class Joueur:
     rencontres: int = 0  # seulement les rencontres du propriétaire du carnet
     derniere: str | None = None  # date ISO de la dernière rencontre
     styles: dict = field(default_factory=dict)  # auteur -> Note
+    memo: str = ""  # note perso du propriétaire : jamais exportée ni fusionnée
 
 
 @dataclass
@@ -105,6 +106,14 @@ class Carnet:
         else:
             joueur.styles.pop(self.auteur, None)
 
+    def memoriser(self, nom: str, texte: str) -> None:
+        """Remplace ma note perso pour ce joueur ; un texte vide l'efface (sans créer le joueur)."""
+        texte = sans_controle(texte).strip()
+        if texte:
+            self._obtenir(nom).memo = texte
+        elif (joueur := self.trouver(nom)) is not None:
+            joueur.memo = ""
+
     def recents(self) -> list:
         return sorted(self.joueurs, key=lambda j: (j.derniere or "", j.nom.casefold()), reverse=True)
 
@@ -137,7 +146,7 @@ class Carnet:
 
     # --- fichier JSON -----------------------------------------------------
 
-    def vers_dict(self) -> dict:
+    def vers_dict(self, avec_memos: bool = True) -> dict:
         return {
             "version": VERSION,
             "auteur": self.auteur,
@@ -147,6 +156,7 @@ class Carnet:
                     "rencontres": j.rencontres,
                     "derniere": j.derniere,
                     "styles": {a: {"texte": n.texte, "maj": n.maj} for a, n in j.styles.items()},
+                    **({"memo": j.memo} if avec_memos and j.memo else {}),
                 }
                 for j in self.recents()
             ],
@@ -165,13 +175,13 @@ class Carnet:
         joueurs = [_lire_joueur(n, j) for n, j in enumerate(brut_joueurs, start=1)]
         return cls(auteur=sans_controle(auteur).strip() or "?", joueurs=joueurs)
 
-    def sauver(self, chemin: Path) -> None:
+    def sauver(self, chemin: Path, avec_memos: bool = True) -> None:
         chemin = Path(chemin)
         chemin.parent.mkdir(parents=True, exist_ok=True)
         temporaire = chemin.with_name(chemin.name + ".tmp")
         try:
             temporaire.write_text(
-                json.dumps(self.vers_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+                json.dumps(self.vers_dict(avec_memos), ensure_ascii=False, indent=2), encoding="utf-8"
             )
             for essai in range(3):
                 try:
@@ -225,7 +235,10 @@ def _lire_joueur(numero: int, brut) -> Joueur:
         if not isinstance(maj, str):
             raise CarnetInvalide(f"{lieu} : « maj » du style de « {auteur} » doit être un texte")
         styles[sans_controle(auteur).strip()] = Note(sans_controle(note["texte"]).strip(), maj)
-    return Joueur(nom=nom, rencontres=rencontres, derniere=derniere, styles=styles)
+    memo = brut.get("memo", "")
+    if not isinstance(memo, str):
+        raise CarnetInvalide(f"{lieu} : « memo » doit être un texte")
+    return Joueur(nom=nom, rencontres=rencontres, derniere=derniere, styles=styles, memo=sans_controle(memo).strip())
 
 
 def _trop_proche(derniere: str | None, quand: str) -> bool:

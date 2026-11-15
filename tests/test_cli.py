@@ -241,3 +241,50 @@ def test_reset_carnet_vide_ne_demande_rien(tmp_path, capsys):
 
     cli.executer(app, "reset", demander)
     assert "déjà vide" in capsys.readouterr().out
+
+
+def _repondre(**reponses):
+    """demander() qui répond selon le mot-clé présent dans la question (Style / Note)."""
+    questions = []
+
+    def demander(question, defaut):
+        questions.append(question)
+        for mot, reponse in reponses.items():
+            if mot in question.casefold():
+                return reponse
+        return ""
+
+    demander.questions = questions
+    return demander
+
+
+def test_croiser_propose_aussi_une_note(tmp_path):
+    app = nouvelle_app(tmp_path)
+    demander = _repondre(style="rush", note="m'a insulté")
+    cli.executer(app, "Bob", demander)
+    assert _style(app, "Bob") == "rush"
+    assert app.mon_memo("Bob") == "m'a insulté"
+    assert len(demander.questions) == 2
+
+
+def test_croiser_note_vide_ou_tiret(tmp_path):
+    app = nouvelle_app(tmp_path)
+    cli.executer(app, "Bob", _repondre(note="x"))
+    cli.executer(app, "Bob", _repondre(note=""))
+    assert app.mon_memo("Bob") == "x"
+    cli.executer(app, "Bob", _repondre(note="-"))
+    assert app.mon_memo("Bob") == ""
+
+
+def test_croiser_ctrl_c_sur_la_note_garde_tout(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.memoriser("Bob", "ancienne")
+
+    def demander(question, defaut):
+        if "note" in question.casefold():
+            raise KeyboardInterrupt
+        return "rush"
+
+    cli.executer(app, "Bob", demander)
+    assert _style(app, "Bob") == "rush"
+    assert app.mon_memo("Bob") == "ancienne"

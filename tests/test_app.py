@@ -291,3 +291,44 @@ def test_croiser_ne_montre_pas_l_historique(tmp_path):
     anciennes = {28: _saison(28, [], []), 27: _saison(27, [], [])}
     texte = nouvelle_app(tmp_path, anciennes=anciennes).croiser("Unloukee")
     assert "Saison 28" not in texte and "Saison 29" not in texte
+
+
+def test_note_enregistre_et_apparait_dans_show(tmp_path):
+    app = nouvelle_app(tmp_path)
+    assert "Note" not in app.voir("Bob")
+    assert "enregistrée" in app.memoriser("bob", "rush archers, mauvais perdant")
+    assert app.mon_memo("Bob") == "rush archers, mauvais perdant"
+    assert "Note : rush archers, mauvais perdant" in app.voir("Bob")
+    assert "Note : rush archers" in app.croiser("Bob")
+    assert Carnet.charger(tmp_path / "carnet.json").trouver("Bob").memo == "rush archers, mauvais perdant"
+
+
+def test_note_sans_compter_de_rencontre_et_effacement(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.memoriser("Bob", "x")
+    assert app.carnet.trouver("Bob").rencontres == 0
+    assert "effacée" in app.memoriser("Bob", "")
+    assert app.mon_memo("Bob") == ""
+
+
+def test_note_vide_sur_joueur_inconnu_ne_cree_rien(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.memoriser("Fantome", "  ")
+    assert app.carnet.trouver("Fantome") is None
+
+
+def test_note_donne_le_nom_officiel_et_apparait_dans_list(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.memoriser("pizza", "gentil")
+    assert app.carnet.trouver("[IMP] Pizza") is None  # nom_canonique ne devine pas le préfixe
+    app.memoriser("unloukee", "fort")
+    assert app.carnet.trouver("Unloukee").memo == "fort"
+    assert "Unloukee" in app.liste()
+
+
+def test_export_sans_les_notes_perso(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.memoriser("Bob", "secret")
+    app.exporter(str(tmp_path / "e.json"))
+    assert "secret" not in (tmp_path / "e.json").read_text(encoding="utf-8")
+    assert "secret" in (tmp_path / "carnet.json").read_text(encoding="utf-8")
