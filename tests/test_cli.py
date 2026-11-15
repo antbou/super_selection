@@ -156,3 +156,15 @@ def test_joueur_nomme_comme_une_commande_est_croise(tmp_path):
     app.croiser("Show Me")
     assert cli.executer(app, "show me", lambda q, d: "") is True
     assert app.carnet.trouver("Show Me").rencontres == 2
+
+
+def test_update_sans_internet_reste_dans_l_outil(tmp_path, monkeypatch, capsys):
+    def panne():
+        raise OSError("pas d'internet")
+
+    monkeypatch.setattr(cli, "fetch_pyproject", panne)
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, "update", lambda q, d: "") is True
+    sortie = capsys.readouterr().out
+    assert "Impossible de vérifier la dernière version" in sortie
+    assert "Déjà à jour" not in sortie

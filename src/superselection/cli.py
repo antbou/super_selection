@@ -20,7 +20,7 @@ from .classement import MODES, charger_classement, fetch_http
 from .couleurs import colorer_aide, peindre
 from .styles import aide_styles, tags_commencant_par
 from .texte import sans_controle
-from .version import fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
+from .version import etat_version, fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
 
 Demander = Callable[[str, str], str]  # (question, valeur par défaut) -> réponse
 
@@ -92,8 +92,11 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         afficher(f"superselection {version_installee()}")
     elif commande == "update":
         actuelle = version_installee()
-        nouvelle = nouvelle_version(actuelle, fetch_pyproject)
-        if nouvelle is None:
+        etat, nouvelle = etat_version(actuelle, fetch_pyproject)
+        if etat == "injoignable":
+            afficher(c("Impossible de vérifier la dernière version (pas d'internet ?). Réessaie plus tard.", "erreur"))
+            return True
+        if etat == "a_jour":
             afficher(c(f"Déjà à jour (version {actuelle}).", "ok"))
             return True
         afficher(f"Mise à jour {actuelle} -> {nouvelle}…")

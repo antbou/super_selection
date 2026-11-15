@@ -55,6 +55,16 @@ def nouvelle_version(installee: str, lire: LireTexte) -> str | None:
     return publiee if publiee and est_plus_recente(publiee, installee) else None
 
 
+def etat_version(installee: str, lire: LireTexte) -> tuple:
+    """(état, version publiée) avec état = "injoignable", "a_jour" ou "nouvelle"."""
+    publiee = lire_version_publiee(lire)
+    if publiee is None:
+        return "injoignable", None
+    if est_plus_recente(publiee, installee):
+        return "nouvelle", publiee
+    return "a_jour", publiee
+
+
 def lancer_mise_a_jour() -> str:
     """Lance la mise à jour. Renvoie le message à afficher ; l'application doit ensuite quitter."""
     if os.name == "nt":
