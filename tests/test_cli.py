@@ -207,3 +207,37 @@ def test_rename_via_executer(tmp_path):
     cli.executer(app, "rename Pizza > Pizza2", lambda q, d: "")
     assert app.carnet.trouver("Pizza") is None
     assert app.carnet.trouver("Pizza2").rencontres == 1
+
+
+@pytest.mark.parametrize("reponse,reste", [("oui", 0), ("o", 2), ("", 2), ("non", 2)])
+def test_reset_demande_confirmation(tmp_path, reponse, reste):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.croiser("Alice")
+    cli.executer(app, "reset", lambda question, defaut: reponse)
+    assert len(app.carnet.joueurs) == reste
+    from superselection.carnet import Carnet
+
+    assert len(Carnet.charger(app.chemin_carnet).joueurs) == reste
+    assert app.carnet.auteur == "Antho"
+
+
+def test_reset_ctrl_c_annule(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+
+    def demander(question, defaut):
+        raise KeyboardInterrupt
+
+    cli.executer(app, "reset", demander)
+    assert app.carnet.trouver("Bob") is not None
+
+
+def test_reset_carnet_vide_ne_demande_rien(tmp_path, capsys):
+    app = nouvelle_app(tmp_path)
+
+    def demander(question, defaut):
+        raise AssertionError("pas de question")
+
+    cli.executer(app, "reset", demander)
+    assert "déjà vide" in capsys.readouterr().out

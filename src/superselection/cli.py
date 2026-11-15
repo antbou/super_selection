@@ -16,7 +16,7 @@ from platformdirs import user_cache_dir, user_data_dir
 
 from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet, CarnetInvalide
-from .classement import MODES, charger_classement, fetch_http
+from .classement import MODES, charger_classement, charger_saison, fetch_http
 from .couleurs import colorer_aide, peindre
 from .styles import aide_styles, tags_commencant_par
 from .texte import sans_controle
@@ -90,6 +90,20 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             except (KeyboardInterrupt, EOFError):
                 reponse = ""
             afficher(app.supprimer(argument) if reponse in ("o", "oui", "y", "yes") else c("Annulé.", "info"))
+    elif commande == "reset":
+        nombre = len(app.carnet.joueurs)
+        if nombre == 0:
+            afficher(c("Le carnet est déjà vide.", "info"))
+        else:
+            question = (
+                c(f"  Supprimer TOUT le carnet ({nombre} joueur(s), rencontres et styles) ? Irréversible. ", "erreur")
+                + c("(tape « oui », Entrée = non)", "info") + " > "
+            )
+            try:
+                reponse = demander(question, "").strip().casefold()
+            except (KeyboardInterrupt, EOFError):
+                reponse = ""
+            afficher(app.vider() if reponse == "oui" else c("Annulé.", "info"))
     elif commande == "rename":
         afficher(app.renommer(argument))
     elif commande == "export":
@@ -301,7 +315,12 @@ def _principal(argv: list) -> None:
         )
 
     app = App(
-        carnet, chemin_carnet, classement, maintenant=maintenant, couleur=_COULEUR
+        carnet,
+        chemin_carnet,
+        classement,
+        maintenant=maintenant,
+        couleur=_COULEUR,
+        saison_passee=lambda n: charger_saison(cache, fetch_http, n, maintenant()),
     )
 
     if interactif:

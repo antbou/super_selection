@@ -17,9 +17,10 @@ la rencontre, puis tu notes son style (Entrée = garder, « - » = effacer).
 Tab complète les noms (top 100 + joueurs déjà croisés).
 
   <nom>             croiser un joueur              ex : [IMP] Pizza
-  show <nom>        voir sa fiche sans compter de rencontre
+  show <nom>        voir sa fiche (3 dernières saisons) sans compter de rencontre
   list              tous les joueurs déjà croisés
   delete <nom>      retirer un joueur du carnet (après confirmation)
+  reset             vider tout le carnet (après confirmation)
   rename <a> > <b>  renommer un joueur (ex : rename Pizza > [IMP] Pizza)
   export <fichier>  envoyer ton carnet à un pote   ex : export antho.json
   import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
@@ -37,6 +38,7 @@ COMMANDES = {
     "show": "show",
     "list": "list",
     "delete": "delete",
+    "reset": "reset",
     "rename": "rename",
     "export": "export",
     "import": "import",
@@ -53,7 +55,7 @@ COMMANDES = {
 }
 
 # proposées par l'auto-complétion
-NOMS_COMMANDES = ("show", "list", "delete", "rename", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
+NOMS_COMMANDES = ("show", "list", "delete", "reset", "rename", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
 
 
 def analyser(ligne: str, noms_connus=()) -> tuple:
@@ -92,24 +94,27 @@ class App:
         classement: Classement | None,
         maintenant: Callable[[], str],
         couleur: bool = False,
+        saison_passee: Callable[[int], Classement | None] | None = None,
     ):
         self.carnet = carnet
         self.chemin_carnet = Path(chemin_carnet)
         self.classement = classement
         self.maintenant = maintenant
         self.couleur = couleur
+        self.saison_passee = saison_passee
 
     def _c(self, texte: str, role: str) -> str:
         return peindre(texte, role, self.couleur)
 
     # --- affichage --------------------------------------------------------
 
-    def _ligne_rangs(self, nom: str) -> str:
-        if self.classement is None:
+    def _ligne_rangs(self, nom: str, classement: Classement | None = None, prefixe: str = "") -> str:
+        classement = classement or self.classement
+        if classement is None:
             return "  " + self._c("(classement indisponible)", "info")
         morceaux = []
         for mode in ("1v1", "2v2"):
-            rangs = self.classement.rangs(nom, mode)
+            rangs = classement.rangs(nom, mode)
             if rangs:
                 ou = self._c(" ou ", "info")
                 texte = ou.join(
@@ -122,12 +127,38 @@ class App:
                 morceaux.append(f"{mode} : " + texte)
             else:
                 morceaux.append(f"{mode} : " + self._c("hors top 100", "hors"))
-        return "  " + self._c("   ·   ", "info").join(morceaux)
+        return "  " + prefixe + self._c("   ·   ", "info").join(morceaux)
+
+    def _lignes_saisons(self, nom: str) -> list:
+        """Rangs de la saison en cours et des 2 précédentes, une ligne par saison (ADR 0012)."""
+        actuelle = self.classement.saison
+        lignes = []
+        for saison in (actuelle, actuelle - 1, actuelle - 2):
+            if saison < 1:
+                break
+            etiquette = self._c(f"Saison {saison} : ", "info")
+            ancien = self.classement if saison == actuelle else (
+                self.saison_passee(saison) if self.saison_passee else None
+            )
+            if ancien is None:
+                lignes.append("  " + self._c(f"Saison {saison} : indisponible", "info"))
+            else:
+                lignes.append(self._ligne_rangs(nom, ancien, etiquette))
+        return lignes
 
     def _fiche(
-        self, nom: str, joueur: Joueur | None, vient_de_croiser: bool = False, deja_compte: bool = False
+        self,
+        nom: str,
+        joueur: Joueur | None,
+        vient_de_croiser: bool = False,
+        deja_compte: bool = False,
+        historique: bool = False,
     ) -> str:
-        lignes = [self._c(nom, "nom"), self._ligne_rangs(nom)]
+        lignes = [self._c(nom, "nom")]
+        if historique and self.classement is not None:
+            lignes += self._lignes_saisons(nom)
+        else:
+            lignes.append(self._ligne_rangs(nom))
         if joueur is None or joueur.rencontres == 0:
             lignes.append("  " + self._c("Jamais croisé.", "info"))
         elif deja_compte:
@@ -184,7 +215,7 @@ class App:
 
     def voir(self, nom: str) -> str:
         nom = self.nom_canonique(nom)
-        return self._fiche(nom, self.carnet.trouver(nom))
+        return self._fiche(nom, self.carnet.trouver(nom), historique=True)
 
     def mon_style(self, nom: str) -> str:
         joueur = self.carnet.trouver(nom)
@@ -201,6 +232,11 @@ class App:
             return self._c(f"« {nom.strip()} » n'est pas dans ton carnet.", "erreur")
         self.carnet.sauver(self.chemin_carnet)
         return self._c(f"{joueur.nom} retiré du carnet.", "ok")
+
+    def vider(self) -> str:
+        nombre = self.carnet.vider()
+        self.carnet.sauver(self.chemin_carnet)
+        return self._c(f"Carnet vidé ({nombre} joueur(s) retiré(s)). Ton pseudo est gardé.", "ok")
 
     def renommer(self, argument: str) -> str:
         ancien, separateur, nouveau = (p.strip() for p in argument.partition(">"))

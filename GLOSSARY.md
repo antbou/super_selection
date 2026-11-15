@@ -20,7 +20,7 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
 - **Rang** (`Rang`) : la position (1 à 100) et les points d'un joueur dans un mode.
   « Hors top 100 » veut dire absent du classement, pas « inconnu ».
 - **Saison** : numéro croissant (29 en novembre 2026). La saison en cours est la dernière
-  qui a des joueurs classés en 1v1 ; elle est détectée automatiquement.
+  qui a des joueurs classés en 1v1 ; elle est détectée automatiquement. `show` affiche aussi les 2 saisons précédentes (ADR 0012).
 - **Export / Import (fusion)** : l'export écrit le carnet dans un fichier pour un pote ;
   l'import fusionne le carnet d'un pote dans le sien. La fusion ajoute les joueurs qui ont
   au moins un style d'un autre auteur, ajoute ou met à jour les styles des autres auteurs

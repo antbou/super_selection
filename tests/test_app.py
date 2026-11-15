@@ -6,7 +6,7 @@ TOP_1V1 = [{"name": "[IMP] Pizza", "rating": 872}, {"name": "Unloukee", "rating"
 TOP_2V2 = [{"name": "Unloukee", "rating": 600}]
 
 
-def nouvelle_app(tmp_path, classement=True):
+def nouvelle_app(tmp_path, classement=True, anciennes=None):
     c = (
         Classement(saison=29, lignes={"1v1": TOP_1V1, "2v2": TOP_2V2}, recupere_le="")
         if classement
@@ -17,6 +17,7 @@ def nouvelle_app(tmp_path, classement=True):
         chemin_carnet=tmp_path / "carnet.json",
         classement=c,
         maintenant=lambda: "2026-11-15T20:00",
+        saison_passee=(lambda n: anciennes.get(n)) if anciennes is not None else None,
     )
 
 
@@ -261,3 +262,32 @@ def test_renommer_juste_la_casse(tmp_path):
 def test_analyser_delete_rename():
     assert analyser("delete Bob") == ("delete", "Bob")
     assert analyser("rename a > b") == ("rename", "a > b")
+
+
+def _saison(n, top_1v1, top_2v2):
+    return Classement(saison=n, lignes={"1v1": top_1v1, "2v2": top_2v2}, recupere_le="")
+
+
+def test_show_donne_trois_saisons(tmp_path):
+    anciennes = {
+        28: _saison(28, [{"name": "x", "rating": 1}, {"name": "Unloukee", "rating": 900}], []),
+        27: _saison(27, [], [{"name": "unloukee", "rating": 500}]),
+    }
+    texte = nouvelle_app(tmp_path, anciennes=anciennes).voir("Unloukee")
+    lignes = texte.splitlines()
+    assert [l.split(" :")[0].strip() for l in lignes[1:4]] == ["Saison 29", "Saison 28", "Saison 27"]
+    assert "#2 (800 pts)" in lignes[1] and "2v2 : #1 (600 pts)" in lignes[1]
+    assert "1v1 : #2 (900 pts)" in lignes[2] and "2v2 : hors top 100" in lignes[2]
+    assert "1v1 : hors top 100" in lignes[3] and "2v2 : #1 (500 pts)" in lignes[3]
+
+
+def test_show_saison_passee_indisponible(tmp_path):
+    texte = nouvelle_app(tmp_path, anciennes={}).voir("Unloukee")
+    assert "Saison 28 : indisponible" in texte
+    assert "Saison 27 : indisponible" in texte
+
+
+def test_croiser_ne_montre_pas_l_historique(tmp_path):
+    anciennes = {28: _saison(28, [], []), 27: _saison(27, [], [])}
+    texte = nouvelle_app(tmp_path, anciennes=anciennes).croiser("Unloukee")
+    assert "Saison 28" not in texte and "Saison 29" not in texte

@@ -78,6 +78,12 @@ class Carnet:
         """Retire un joueur du carnet (rencontres et notes). Renvoie le joueur retiré."""
         return self._joueurs.pop(nom.casefold(), None)
 
+    def vider(self) -> int:
+        """Retire tous les joueurs (le pseudo de l'auteur reste). Renvoie le nombre retiré."""
+        nombre = len(self._joueurs)
+        self._joueurs.clear()
+        return nombre
+
     def renommer(self, ancien: str, nouveau: str) -> None:
         """Change le nom d'un joueur en gardant ses rencontres et ses styles.
 

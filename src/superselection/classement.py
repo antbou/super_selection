@@ -169,3 +169,34 @@ def charger_classement(
     except OSError:
         pass  # cache impossible à écrire : le classement téléchargé reste utilisé
     return classement, None
+
+
+def charger_saison(
+    dossier: Path, fetch: Fetcher, saison: int, maintenant: str
+) -> Classement | None:
+    """Classement d'une saison passée (ADR 0012). Une saison finie ne change plus : cache définitif.
+
+    Renvoie None si la saison n'existe pas ou si le réseau échoue sans cache.
+    """
+    cache = dossier / f"saison-{saison}.json"
+    deja = _lire_cache(cache)
+    if deja and deja.saison == saison:
+        return deja
+    try:
+        lignes = {mode: fetch(mode, saison) for mode in MODES}
+    except (OSError, ErreurClassement, ValueError):
+        return None
+    if not lignes["1v1"]:
+        return None
+    classement = Classement(saison=saison, lignes=lignes, recupere_le=maintenant)
+    try:
+        dossier.mkdir(parents=True, exist_ok=True)
+        cache.write_text(
+            json.dumps(
+                {"saison": saison, "lignes": lignes, "recupere_le": maintenant}, ensure_ascii=False
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+    return classement

@@ -1,0 +1,3 @@
+# `reset` vide le carnet après une confirmation « oui »
+
+`reset` retire tous les joueurs, rencontres et styles de `carnet.json`. Le pseudo de l'auteur est gardé (pas de nouveau choix de pseudo au prochain lancement), et le cache du classement n'est pas touché (il se retélécharge tout seul). Contrairement à `delete`, qui accepte « o », `reset` exige de taper « oui » en entier : Entrée, « o » ou Ctrl+C annulent. Compromis : plus lourd à taper, voulu car l'opération est irréversible. Pas d'option pour supprimer le fichier lui-même : un carnet vide fait le même effet, sans cas particulier « fichier absent ».

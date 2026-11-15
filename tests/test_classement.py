@@ -7,6 +7,7 @@ from superselection.classement import (
     Classement,
     ErreurClassement,
     charger_classement,
+    charger_saison,
     derniere_saison,
 )
 
@@ -152,3 +153,23 @@ def test_cache_de_mauvaise_forme_est_ignore(tmp_path):
                     '{"saison": 29, "lignes": {"1v1": [3]}, "recupere_le": ""}'):
         cache.write_text(contenu, encoding="utf-8")
         assert _lire_cache(cache) is None
+
+
+def test_charger_saison_met_en_cache_la_saison_passee(tmp_path):
+    appels = []
+    fetch = faux_fetch({28: FIXTURE}, appels)
+    premier = charger_saison(tmp_path, fetch, 28, "2026-11-15T10:00")
+    assert premier.saison == 28 and premier.rang("stoneageruler", "1v1").position == 2
+    nb_appels = len(appels)
+    second = charger_saison(tmp_path, fetch, 28, "2026-11-16T10:00")
+    assert len(appels) == nb_appels  # lu depuis le cache
+    assert second.rang("stoneageruler", "1v1").position == 2
+
+
+def test_charger_saison_inexistante_ou_reseau_en_panne(tmp_path):
+    assert charger_saison(tmp_path, faux_fetch({}), 3, "") is None
+
+    def panne(mode, saison):
+        raise OSError("hors ligne")
+
+    assert charger_saison(tmp_path, panne, 28, "") is None
