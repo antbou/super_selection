@@ -93,6 +93,8 @@ def test_export_puis_import_chez_le_pote(tmp_path):
     )
     texte = pote.importer(str(fichier))
     assert "1 joueur(s) ajouté(s)" in texte
+    assert "1 trait(s) ajouté(s), 0 trait(s) mis à jour" in texte
+    assert "Tes traits et tes notes perso n'ont pas été touchés." in texte
     assert pote.carnet.trouver("Bob").traits["Antho"].texte == "noob"
 
 

@@ -38,8 +38,8 @@ class Joueur:
 @dataclass
 class Bilan:
     joueurs_ajoutes: int = 0
-    notes_ajoutees: int = 0
-    notes_maj: int = 0
+    traits_ajoutes: int = 0
+    traits_maj: int = 0
 
 
 class Carnet:
@@ -76,7 +76,7 @@ class Carnet:
         return joueur
 
     def supprimer(self, nom: str) -> Joueur | None:
-        """Retire un joueur du carnet (rencontres et notes). Renvoie le joueur retiré."""
+        """Retire un joueur du carnet (rencontres et traits). Renvoie le joueur retiré."""
         return self._joueurs.pop(nom.casefold(), None)
 
     def vider(self) -> int:
@@ -118,9 +118,9 @@ class Carnet:
         return sorted(self.joueurs, key=lambda j: (j.derniere or "", j.nom.casefold()), reverse=True)
 
     def fusionner(self, autre: "Carnet") -> Bilan:
-        """Ajoute les joueurs et les notes d'un autre carnet.
+        """Ajoute les joueurs et les traits d'un autre carnet.
 
-        Mes propres notes ne sont jamais écrasées ; la note d'un autre auteur
+        Mes propres traits ne sont jamais écrasés ; le trait d'un autre auteur
         n'est remplacée que par une version plus récente.
         """
         bilan = Bilan()
@@ -138,10 +138,10 @@ class Carnet:
                 actuelle = mien.traits.get(auteur)
                 if actuelle is None:
                     mien.traits[auteur] = Note(note.texte, note.maj)
-                    bilan.notes_ajoutees += 1
+                    bilan.traits_ajoutes += 1
                 elif note.maj > actuelle.maj and note.texte != actuelle.texte:
                     mien.traits[auteur] = Note(note.texte, note.maj)
-                    bilan.notes_maj += 1
+                    bilan.traits_maj += 1
         return bilan
 
     # --- fichier JSON -----------------------------------------------------

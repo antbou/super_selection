@@ -145,9 +145,9 @@ superselection "[IMP] Pizza"
    dans la fenêtre pour coller son chemin).
 
 La fusion ajoute les joueurs qu'il ne connaît pas et les traits que tu as notés,
-**signés de ton pseudo**. Elle ne touche jamais à ses propres notes. Le compteur
+**signés de ton pseudo**. Elle ne touche jamais à ses propres traits. Le compteur
 « croisé N fois » ne compte que ses rencontres à lui. Si tu lui renvoies plus
-tard une version plus récente de ton carnet, tes notes sont mises à jour chez lui.
+tard une version plus récente de ton carnet, tes traits sont mis à jour chez lui.
 
 ## Où sont mes données ?
 

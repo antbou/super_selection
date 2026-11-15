@@ -363,8 +363,8 @@ class App:
         self.carnet.sauver(self.chemin_carnet)
         return (
             f"Carnet de {autre.auteur} fusionné : {bilan.joueurs_ajoutes} joueur(s) ajouté(s), "
-            f"{bilan.notes_ajoutees} note(s) ajoutée(s), {bilan.notes_maj} note(s) mise(s) à jour. "
-            "Tes notes n'ont pas été touchées."
+            f"{bilan.traits_ajoutes} trait(s) ajouté(s), {bilan.traits_maj} trait(s) mis à jour. "
+            "Tes traits et tes notes perso n'ont pas été touchés."
         )
 
     def noms(self) -> list:

@@ -53,7 +53,7 @@ def test_fusion_ajoute_les_joueurs_et_notes_du_pote():
 
     bilan = moi.fusionner(pote)
 
-    assert (bilan.joueurs_ajoutes, bilan.notes_ajoutees, bilan.notes_maj) == (1, 2, 0)
+    assert (bilan.joueurs_ajoutes, bilan.traits_ajoutes, bilan.traits_maj) == (1, 2, 0)
     pizza = moi.trouver("Pizza")
     assert pizza.rencontres == 1  # seules mes rencontres comptent
     assert pizza.traits["Antho"].texte == "agressif"
@@ -90,11 +90,11 @@ def test_reimport_met_a_jour_seulement_si_plus_recent():
     v2.croiser("Pizza", quand="2026-11-12")
     v2.noter("Pizza", "en fait agressif", maintenant="2026-11-12T20:00")
     bilan = moi.fusionner(v2)
-    assert bilan.notes_maj == 1
+    assert bilan.traits_maj == 1
     assert moi.trouver("Pizza").traits["Kevin"].texte == "en fait agressif"
 
     bilan = moi.fusionner(v1)  # ancienne version : ignorée
-    assert (bilan.notes_ajoutees, bilan.notes_maj) == (0, 0)
+    assert (bilan.traits_ajoutes, bilan.traits_maj) == (0, 0)
     assert moi.trouver("Pizza").traits["Kevin"].texte == "en fait agressif"
 
 

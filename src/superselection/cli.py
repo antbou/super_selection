@@ -441,7 +441,7 @@ def _charger_carnet(chemin_carnet: Path, interactif: bool) -> Carnet | None:
     while not pseudo:
         try:
             pseudo = sans_controle(
-                input("Ton pseudo (il signe tes notes quand tu partages ton carnet) : ")
+                input("Ton pseudo (il signe tes traits quand tu partages ton carnet) : ")
             ).strip()
         except (KeyboardInterrupt, EOFError):
             afficher("")
