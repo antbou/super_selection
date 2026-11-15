@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Callable
 
@@ -190,8 +189,10 @@ class App:
             autre = Carnet.charger(source)
         except FileNotFoundError:
             return self._c(f"Fichier introuvable : {source}", "erreur")
-        except (ValueError, KeyError, TypeError, json.JSONDecodeError):
-            return self._c(f"Ce fichier n'est pas un carnet superselection : {source}", "erreur")
+        except (ValueError, OSError) as erreur:  # JSONDecodeError et CarnetInvalide sont des ValueError
+            return self._c(
+                f"Ce fichier n'est pas un carnet superselection : {source} ({erreur})", "erreur"
+            )
         bilan = self.carnet.fusionner(autre)
         self.carnet.sauver(self.chemin_carnet)
         return (

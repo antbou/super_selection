@@ -105,3 +105,78 @@ def test_fusion_ignore_les_joueurs_sans_note():
     bilan = moi.fusionner(pote)
     assert bilan.joueurs_ajoutes == 0
     assert moi.trouver("Bob") is None
+
+
+# --- validation à la lecture ---------------------------------------------------
+
+import pytest
+
+from superselection.carnet import CarnetInvalide
+
+
+def _joueur(**champs):
+    return {"nom": "Bob", **champs}
+
+
+def _carnet(**joueur):
+    return {"auteur": "Kevin", "joueurs": [_joueur(**joueur)]}
+
+
+@pytest.mark.parametrize(
+    "brut",
+    [
+        [],
+        "texte",
+        {"joueurs": {}},
+        {"auteur": 3, "joueurs": []},
+        {"joueurs": ["Bob"]},
+        {"joueurs": [{"nom": 3}]},
+        {"joueurs": [{"nom": ""}]},
+        {"joueurs": [{"nom": "\x1b\x07"}]},
+        _carnet(rencontres="a"),
+        _carnet(rencontres=-1),
+        _carnet(rencontres=True),
+        _carnet(rencontres=1.5),
+        _carnet(derniere=3),
+        _carnet(derniere="hier"),
+        _carnet(styles=[]),
+        _carnet(styles={"Kevin": "rush"}),
+        _carnet(styles={"Kevin": {"texte": 3}}),
+        _carnet(styles={"Kevin": {"texte": "rush", "maj": 3}}),
+    ],
+)
+def test_depuis_dict_refuse_les_carnets_invalides(brut):
+    with pytest.raises(CarnetInvalide):
+        Carnet.depuis_dict(brut)
+
+
+def test_message_d_erreur_situe_le_joueur():
+    brut = {"joueurs": [{"nom": "Al"}, {"nom": "Bob"}, {"nom": "Bob2", "rencontres": "a"}]}
+    with pytest.raises(CarnetInvalide, match=r"joueur n°3 \(« Bob2 »\).*rencontres"):
+        Carnet.depuis_dict(brut)
+
+
+def test_depuis_dict_valeurs_par_defaut():
+    c = Carnet.depuis_dict({"joueurs": [{"nom": "Bob", "styles": {"K": {"texte": "rush"}}}]})
+    assert c.auteur == "?"
+    assert c.trouver("Bob").styles["K"].maj == ""
+    assert c.trouver("Bob").derniere is None
+
+
+def test_depuis_dict_nettoie_les_textes():
+    brut = {
+        "auteur": " Ke\x1b[2Jvin ",
+        "joueurs": [
+            {"nom": " Bob\x07 ", "derniere": "2026-11-15T10:00", "styles": {"K\x1bx": {"texte": "ru\nsh ", "maj": ""}}}
+        ],
+    }
+    c = Carnet.depuis_dict(brut)
+    assert c.auteur == "Ke[2Jvin"
+    assert c.trouver("Bob").styles["Kx"].texte == "rush"
+
+
+def test_charger_json_casse(tmp_path):
+    chemin = tmp_path / "c.json"
+    chemin.write_text("{", encoding="utf-8")
+    with pytest.raises(ValueError):
+        Carnet.charger(chemin)

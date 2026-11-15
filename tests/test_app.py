@@ -123,3 +123,17 @@ def test_fiche_et_liste_affichent_les_emojis(tmp_path):
 
 def test_analyser_styles():
     assert analyser("styles") == ("styles", "")
+
+
+def test_import_fichier_qui_n_est_pas_un_carnet(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    avant = (tmp_path / "carnet.json").read_text(encoding="utf-8")
+    for contenu in ("[]", "{", '{"joueurs": [{"nom": "X", "rencontres": "a"}]}'):
+        fichier = tmp_path / "x.json"
+        fichier.write_text(contenu, encoding="utf-8")
+        texte = app.importer(str(fichier))
+        assert "n'est pas un carnet superselection" in texte
+        assert str(fichier) in texte
+    assert (tmp_path / "carnet.json").read_text(encoding="utf-8") == avant
+    assert [j.nom for j in app.carnet.joueurs] == ["Bob"]
