@@ -405,3 +405,8 @@ def test_noter_enregistre_les_mots_cles_normalises(tmp_path):
     app.croiser("Bob")
     assert app.noter("Bob", "agressif, Defense") == ""
     assert app.mon_trait("Bob") == "aggressive, defence"
+
+
+def test_analyser_commandes_disparues():
+    assert analyser("rename Pizza > Pizzza") == ("rename", "Pizza > Pizzza")
+    assert analyser("styles") == ("traits", "")

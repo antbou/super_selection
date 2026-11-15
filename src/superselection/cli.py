@@ -178,6 +178,8 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             afficher(c("Indique un nom.  ex : edit [IMP] Pizza", "info"))
             return True
         _editer(app, app.nom_canonique(argument), demander)
+    elif commande == "rename":
+        afficher(c("`rename` n'existe plus : utilise « edit <nom> » pour changer un nom.", "info"))
     elif commande == "export":
         afficher(app.exporter(argument))
     elif commande == "import":

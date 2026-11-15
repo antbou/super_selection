@@ -45,6 +45,8 @@ COMMANDES = {
     "export": "export",
     "import": "import",
     "traits": "traits",
+    "styles": "traits",  # ancien nom (ADR 0017), plus annoncé
+    "rename": "rename",  # supprimé (ADR 0016) : renvoie vers edit, plus annoncé
     "refresh": "refresh",
     "update": "update",
     "version": "version",

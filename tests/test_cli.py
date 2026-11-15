@@ -413,3 +413,10 @@ def test_edit_tiret_efface_la_note(tmp_path):
     reponses = iter(["Bob", "", "-"])
     cli.executer(app, "edit Bob", lambda q, d, genre="texte": next(reponses))
     assert app.mon_memo("Bob") == ""
+
+
+def test_rename_renvoie_vers_edit_sans_creer_de_joueur(tmp_path, capsys):
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, "rename Pizza > Pizzza", lambda q, d, genre="texte": pytest.fail("pas de question")) is True
+    assert "« edit <nom> »" in capsys.readouterr().out
+    assert app.carnet.joueurs == []

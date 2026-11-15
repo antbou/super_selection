@@ -4,4 +4,4 @@ Remplace l'ADR 0008. Le texte libre servait peu : le détail utile (« rush arch
 
 « Style » devient « trait » partout (commande `traits`, messages, code, glossaire), car la liste décrit un trait de joueur, pas un texte de style.
 
-Compromis : la clé JSON reste `styles`, pour ne casser aucun carnet existant ni partagé. Les anciens textes libres restent lisibles et affichés tels quels ; ils ne sont validés que s'ils sont modifiés. Ajouter un sixième mot demande de changer le code, mais jamais les carnets (l'emoji reste à l'affichage).
+Compromis : la clé JSON reste `styles`, pour ne casser aucun carnet existant ni partagé. Les anciens textes libres restent lisibles et affichés tels quels ; ils ne sont validés que s'ils sont modifiés. Ajouter un sixième mot demande de changer le code, mais jamais les carnets (l'emoji reste à l'affichage). `styles` reste accepté comme alias de `traits` (non annoncé), pour ne pas créer un joueur « styles » par habitude.
