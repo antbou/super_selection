@@ -185,9 +185,10 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
     elif commande == "import":
         afficher(app.importer(argument))
     elif commande == "refresh":
-        app.classement, message = charger_classement(
+        nouveau, message = charger_classement(
             dossiers()[1] / "classement.json", fetch_http, maintenant()
         )
+        app.changer_classement(nouveau)
         afficher(c(message, "erreur") if message else c(f"Classement rechargé (saison {app.classement.saison}).", "ok"))
     elif commande == "version":
         afficher(f"superselection {version_installee()}")

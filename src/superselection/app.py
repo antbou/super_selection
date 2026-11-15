@@ -106,6 +106,7 @@ class App:
         self.maintenant = maintenant
         self.couleur = couleur
         self.saison_passee = saison_passee
+        self._saisons_passees: dict = {}  # numéro de saison -> Classement | None, pour la session
 
     def _c(self, texte: str, role: str) -> str:
         return peindre(texte, role, self.couleur)
@@ -133,6 +134,18 @@ class App:
                 morceaux.append(f"{mode} : " + self._c("hors top 100", "hors"))
         return "  " + prefixe + self._c("   ·   ", "info").join(morceaux)
 
+    def _saison_passee(self, saison: int) -> Classement | None:
+        """Classement d'une saison passée, mémorisé pour la session (même un échec : serveur muet = une seule attente)."""
+        if self.saison_passee is None:
+            return None
+        if saison not in self._saisons_passees:
+            self._saisons_passees[saison] = self.saison_passee(saison)
+        return self._saisons_passees[saison]
+
+    def changer_classement(self, classement: Classement | None) -> None:
+        self.classement = classement
+        self._saisons_passees.clear()
+
     def _lignes_saisons(self, nom: str) -> list:
         """Rangs de la saison en cours et des 2 précédentes, une ligne par saison (ADR 0012)."""
         actuelle = self.classement.saison
@@ -141,9 +154,7 @@ class App:
             if saison < 1:
                 break
             etiquette = self._c(f"Saison {saison} : ", "info")
-            ancien = self.classement if saison == actuelle else (
-                self.saison_passee(saison) if self.saison_passee else None
-            )
+            ancien = self.classement if saison == actuelle else self._saison_passee(saison)
             if ancien is None:
                 lignes.append("  " + self._c(f"Saison {saison} : indisponible", "info"))
             else:
@@ -216,7 +227,7 @@ class App:
             fiche += "\n  " + self._c("Nouveau joueur.", "info")
             if proches := self._noms_proches(nom):
                 fiche += self._c(" Noms proches : ", "info") + ", ".join(proches)
-                fiche += self._c(" (si c'est le même : delete, ou edit sur l'autre pour le renommer)", "info")
+                fiche += self._c(f" (si c'est le même joueur : delete {nom}, puis tape le bon nom)", "info")
         return fiche
 
     def voir(self, nom: str) -> str:
@@ -284,6 +295,8 @@ class App:
     def noter(self, nom: str, texte: str) -> str:
         """Enregistre le trait (mots-clés seulement, ADR 0017). Renvoie un message d'erreur, ou « » si tout va bien."""
         canonique, inconnus = valider(texte)
+        if texte.strip() and not canonique and not inconnus:  # « , » ou « ; » : aucun mot, on n'efface pas
+            return self._c("Trait refusé : aucun mot-clé.", "erreur") + "\n" + aide_traits()
         if inconnus:
             mots = ", ".join(f"« {m} »" for m in inconnus)
             return self._c(f"Trait refusé : {mots} inconnu(s). ", "erreur") + "\n" + aide_traits()
@@ -341,6 +354,8 @@ class App:
         cible = Path(chemin).expanduser()
         if cible.suffix == "":
             cible = cible.with_suffix(".json")
+        if cible.resolve() == self.chemin_carnet.resolve():
+            return self._c("Choisis un autre fichier : celui-ci est ton carnet.", "erreur")
         try:
             self.carnet.sauver(cible, avec_memos=False)
         except OSError as erreur:

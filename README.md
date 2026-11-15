@@ -72,7 +72,7 @@ sans compter de rencontre : `show Bob`. Pour changer son trait, ta note ou son n
 fin d'une partie (sans recompter) : `edit Bob`.
 
 Un nom inconnu du top 100 et du carnet est signalé « Nouveau joueur », avec les noms
-proches s'il y en a : une faute de frappe se corrige avec `delete` ou `edit` (qui renomme).
+proches s'il y en a : une faute de frappe se corrige avec `delete` (puis tape le bon nom).
 
 ### Commandes
 

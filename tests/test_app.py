@@ -1,3 +1,5 @@
+import pytest
+
 from superselection.couleurs import sans_couleur
 from superselection.app import App, analyser
 from superselection.carnet import Carnet
@@ -208,6 +210,7 @@ def test_nouveau_joueur_propose_des_noms_proches(tmp_path):
     texte = app.croiser("Pizza")
     assert "Nouveau joueur." in texte
     assert "Noms proches : [IMP] Pizza" in texte
+    assert "(si c'est le même joueur : delete Pizza, puis tape le bon nom)" in texte
     assert app.carnet.trouver("Pizza") is not None  # on suggère, on ne fusionne pas
 
 
@@ -412,3 +415,51 @@ def test_noter_enregistre_les_mots_cles_normalises(tmp_path):
 def test_analyser_commandes_disparues():
     assert analyser("rename Pizza > Pizzza") == ("rename", "Pizza > Pizzza")
     assert analyser("styles") == ("traits", "")
+
+
+# --- effets de bord ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize("texte", [",", " ; ", ", ,"])
+def test_trait_sans_aucun_mot_est_refuse_et_n_efface_pas(tmp_path, texte):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.noter("Bob", "noob")
+    message = app.noter("Bob", texte)
+    assert "Trait refusé : aucun mot-clé." in message and "Traits possibles" in message
+    assert app.mon_trait("Bob") == "noob"
+
+
+def test_trait_vide_efface_toujours(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.noter("Bob", "noob")
+    assert app.noter("Bob", "  ") == ""
+    assert app.mon_trait("Bob") == ""
+
+
+def test_export_vers_son_propre_carnet_est_refuse(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.memoriser("Bob", "secret")
+    avant = app.chemin_carnet.read_text(encoding="utf-8")
+    message = app.exporter(str(app.chemin_carnet))
+    assert "Choisis un autre fichier : celui-ci est ton carnet." in message
+    assert app.chemin_carnet.read_text(encoding="utf-8") == avant
+
+
+def test_show_ne_redemande_pas_la_saison_passee_deux_fois(tmp_path):
+    appels = []
+
+    def passee(n):
+        appels.append(n)
+        return None  # serveur muet
+
+    app = nouvelle_app(tmp_path)
+    app.saison_passee = passee
+    app.voir("Bob")
+    app.voir("Bob")
+    assert sorted(appels) == [27, 28]
+    app.changer_classement(app.classement)
+    app.voir("Bob")
+    assert sorted(appels) == [27, 27, 28, 28]
