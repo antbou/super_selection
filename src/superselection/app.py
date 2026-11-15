@@ -8,6 +8,7 @@ from typing import Callable
 
 from .carnet import Carnet, Joueur
 from .classement import Classement
+from .styles import decorer
 
 AIDE = """\
 Tape le nom d'un adversaire : je te dis s'il est dans le top 100, je compte
@@ -19,6 +20,7 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   list              tous les joueurs déjà croisés
   export <fichier>  envoyer ton carnet à un pote   ex : export antho.json
   import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
+  styles            les mots-clés de style et leurs emojis (🔥 aggressive, 🛡️ defence…)
   refresh           recharger le classement
   help              cette aide
   quit              sortir (ou Ctrl+D)
@@ -31,6 +33,7 @@ COMMANDES = {
     "list": "list",
     "export": "export",
     "import": "import",
+    "styles": "styles",
     "refresh": "refresh",
     "help": "help",
     "?": "help",
@@ -41,7 +44,7 @@ COMMANDES = {
 }
 
 # proposées par l'auto-complétion
-NOMS_COMMANDES = ("show", "list", "export", "import", "refresh", "help", "quit")
+NOMS_COMMANDES = ("show", "list", "styles", "export", "import", "refresh", "help", "quit")
 
 
 def analyser(ligne: str) -> tuple:
@@ -109,7 +112,7 @@ class App:
             lignes.append("  Style : pas encore noté")
         for auteur, note in sorted(styles.items(), key=lambda a: a[0] != self.carnet.auteur):
             qui = "toi" if auteur == self.carnet.auteur else auteur
-            lignes.append(f"  Style ({qui}) : {note.texte}")
+            lignes.append(f"  Style ({qui}) : {decorer(note.texte)}")
         return "\n".join(lignes)
 
     def _nom_canonique(self, nom: str) -> str:
@@ -149,7 +152,7 @@ class App:
         lignes = [f"{len(joueurs)} joueur(s) :"]
         for j in joueurs:
             styles = " | ".join(
-                f"{'toi' if a == self.carnet.auteur else a}: {n.texte}" for a, n in j.styles.items()
+                f"{'toi' if a == self.carnet.auteur else a}: {decorer(n.texte)}" for a, n in j.styles.items()
             )
             vu = f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "jamais croisé"
             lignes.append(f"  {j.nom:<{largeur}}  {vu:<16}  {styles}")

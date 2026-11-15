@@ -10,8 +10,10 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
 - **Rencontre** : le fait de taper le nom d'un joueur (taper son nom, ou `player <nom>`). Ça incrémente
   son compteur et met à jour la date de la dernière rencontre. Le compteur ne compte que
   les rencontres du propriétaire du carnet, jamais celles d'un pote.
-- **Style** (`Note`) : texte libre court qui décrit la façon de jouer d'un joueur (« agressif,
+- **Style** (`Note`) : texte libre court qui décrit la façon de jouer d'un joueur (« aggressive,
   rush archers »). Un joueur a au plus un style par **auteur**.
+- **Mot-clé de style** (`Tag`, `styles.py`) : mot reconnu dans un style (`aggressive`, `defence`,
+  `noob`…), affiché avec son emoji. Le texte est stocké sans emoji ; l'emoji est ajouté à l'affichage.
 - **Classement** (`Classement`) : le top 100 officiel d'une **saison**, en 1v1 et en 2v2, lu sur
   `https://ratings.warselect.io/webapi/top100{1v1|2v2}?season=N` (source de ws-stats.pl).
   En 2v2 le rang est individuel : les deux coéquipiers ont les mêmes points.

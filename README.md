@@ -43,16 +43,16 @@ Marmelaaada
   1v1 : #1 (758 pts)   ·   2v2 : hors top 100
   Première rencontre.
   Style : pas encore noté
-  Son style ? (Entrée = passer) > très agressif, rush dès le début
+  Son style ? (Tab = mots-clés, Entrée = passer) > aggressive, rush archers
   Style enregistré.
 
 adversaire > Bob
 Bob
   1v1 : hors top 100   ·   2v2 : hors top 100
   Croisé 3 fois — dernière fois le 12/11/2026
-  Style (toi) : passif, se défend bien
-  Style (Kevin) : spam cavalerie
-  Nouveau style ? (Entrée = garder, - = effacer) >
+  Style (toi) : 🛡️ defence, 😴 passive
+  Style (Kevin) : 🔁 spam cavalerie
+  Nouveau style ? (Tab = mots-clés, Entrée = garder, - = effacer) >
 ```
 
 Chaque nom tapé compte comme une rencontre. Pour seulement regarder une fiche sans
@@ -65,11 +65,28 @@ compter de rencontre : `show Bob`.
 | `<nom>`            | croiser un joueur, puis noter son style          | `[IMP] Pizza`        |
 | `show <nom>`       | voir sa fiche sans compter de rencontre          | `show Unloukee`      |
 | `list`             | tous les joueurs déjà croisés, du plus récent    | `list`               |
+| `styles`           | les mots-clés de style et leurs emojis           | `styles`             |
 | `export <fichier>` | écrire ton carnet dans un fichier pour un pote   | `export antho.json`  |
 | `import <fichier>` | fusionner le carnet d'un pote dans le tien       | `import kevin.json`  |
 | `refresh`          | recharger le classement                          | `refresh`            |
 | `help`             | afficher l'aide                                  | `help`               |
 | `quit`             | sortir (ou `q`, `exit`, Ctrl+D)                  | `q`                  |
+
+### Styles et emojis
+
+Le style est un texte libre, mais certains mots-clés reçoivent un emoji à l'affichage, et
+Tab les complète quand tu notes un style :
+
+| | Mot-clé | | Mot-clé | | Mot-clé |
+|---|---|---|---|---|---|
+| 🔥 | `aggressive` | 🐢 | `turtle` | 👑 | `pro` |
+| ⚡ | `rush` | 💰 | `eco` | 🐣 | `noob` |
+| 🛡️ | `defence` | 🔁 | `spam` | 🎭 | `smurf` |
+| 😴 | `passive` | 🧀 | `cheese` | ☠️ | `toxic` |
+| 🎯 | `micro` | 🤝 | `team` | | |
+
+Les variantes courantes marchent aussi (`aggresive`, `defense`, `def`, `nul`, `agressif`…).
+`styles` affiche la liste complète avec leur sens.
 
 Un joueur s'appelle comme une commande ? Utilise `player list`.
 

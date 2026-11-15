@@ -13,6 +13,7 @@ from platformdirs import user_cache_dir, user_data_dir
 from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet
 from .classement import MODES, charger_classement, fetch_http
+from .styles import aide_styles, tags_commencant_par
 
 Demander = Callable[[str, str], str]  # (question, valeur par défaut) -> réponse
 
@@ -44,6 +45,8 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         return False
     if commande == "help":
         print(AIDE)
+    elif commande == "styles":
+        print(aide_styles())
     elif commande == "list":
         print(app.liste())
     elif commande == "export":
@@ -65,9 +68,9 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         nom = app._nom_canonique(argument)
         actuel = app.mon_style(nom)
         question = (
-            "  Nouveau style ? (Entrée = garder, - = effacer) > "
+            "  Nouveau style ? (Tab = mots-clés, Entrée = garder, - = effacer) > "
             if actuel
-            else "  Son style ? (Entrée = passer) > "
+            else "  Son style ? (Tab = mots-clés, Entrée = passer) > "
         )
         reponse = demander(question, "").strip()
         if reponse == "-" and actuel:
@@ -120,7 +123,17 @@ def _session(app: App):
                             yield Completion(c, start_position=-len(texte), display_meta="commande")
                 yield from self._noms(texte)
 
-    return PromptSession(completer=Completeur(), complete_while_typing=True)
+    class CompleteurStyle(Completer):
+        """Complète le dernier mot avec les mots-clés de style (aggressive, defence…)."""
+
+        def get_completions(self, document, complete_event):
+            mot = document.get_word_before_cursor(WORD=True).lstrip(",;")
+            if not mot:
+                return
+            for tag in tags_commencant_par(mot):
+                yield Completion(tag.nom, start_position=-len(mot), display_meta=f"{tag.emoji} {tag.sens}")
+
+    return PromptSession(completer=Completeur(), complete_while_typing=True), CompleteurStyle()
 
 
 def main(argv: list | None = None) -> None:
@@ -153,10 +166,10 @@ def main(argv: list | None = None) -> None:
     app = App(carnet, chemin_carnet, classement, aujourd_hui=aujourd_hui, maintenant=maintenant)
 
     if interactif:
-        session = _session(app)
+        session, completeur_style = _session(app)
 
         def demander(question: str, defaut: str) -> str:
-            return session.prompt(question, default=defaut, completer=None)
+            return session.prompt(question, default=defaut, completer=completeur_style)
 
     else:
 

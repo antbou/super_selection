@@ -51,7 +51,7 @@ def test_croiser_deux_fois_affiche_le_compteur_et_le_style(tmp_path):
     texte = app.croiser("bob")
     assert "1v1 : hors top 100" in texte
     assert "Croisé 2 fois" in texte
-    assert "Style (toi) : rush" in texte
+    assert "Style (toi) : ⚡ rush" in texte
 
 
 def test_voir_ne_compte_pas_de_rencontre(tmp_path):
@@ -108,3 +108,16 @@ def test_voir_apres_une_rencontre(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     assert "Croisé 1 fois — dernière fois le 15/11/2026" in app.voir("bob")
+
+
+def test_fiche_et_liste_affichent_les_emojis(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.noter("Bob", "aggressive, noob")
+    assert "Style (toi) : 🔥 aggressive, 🐣 noob" in app.voir("Bob")
+    assert "🔥 aggressive" in app.liste()
+    assert app.carnet.trouver("Bob").styles["Antho"].texte == "aggressive, noob"  # stocké sans emoji
+
+
+def test_analyser_styles():
+    assert analyser("styles") == ("styles", "")
