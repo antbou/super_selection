@@ -21,7 +21,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/ant
 ```
 
 Ferme la fenêtre, rouvre-la, tape `superselection`. Rien d'autre à installer (ni Python,
-ni Git). Même ligne pour mettre à jour. Détails et dépannage :
+ni Git). Détails et dépannage :
 [docs/installation-windows.md](docs/installation-windows.md).
 
 ### Linux / macOS
@@ -30,6 +30,17 @@ ni Git). Même ligne pour mettre à jour. Détails et dépannage :
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install https://github.com/antbou/super_selection/archive/refs/heads/main.zip
 ```
+
+### Mettre à jour
+
+Au démarrage, l'outil prévient quand une nouvelle version est sortie :
+
+```text
+Nouvelle version 0.3.0 disponible (tu as 0.2.0) : tape « update ».
+```
+
+Tape `update`. Sous Windows, la mise à jour s'ouvre dans une nouvelle fenêtre puis relance
+l'outil. Ton carnet est conservé.
 
 ## Utilisation
 
@@ -69,6 +80,8 @@ compter de rencontre : `show Bob`.
 | `export <fichier>` | écrire ton carnet dans un fichier pour un pote   | `export antho.json`  |
 | `import <fichier>` | fusionner le carnet d'un pote dans le tien       | `import kevin.json`  |
 | `refresh`          | recharger le classement                          | `refresh`            |
+| `update`           | installer la dernière version                    | `update`             |
+| `version`          | voir la version installée                        | `version`            |
 | `help`             | afficher l'aide                                  | `help`               |
 | `quit`             | sortir (ou `q`, `exit`, Ctrl+D)                  | `q`                  |
 
@@ -146,5 +159,8 @@ uv sync
 uv run pytest
 uv run superselection
 ```
+
+Publier une version : augmenter `version` dans `pyproject.toml` (puis `uv lock`) et pousser
+sur `main`. Les utilisateurs sont prévenus au lancement suivant.
 
 Vocabulaire du domaine : voir [GLOSSARY.md](GLOSSARY.md).

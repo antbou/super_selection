@@ -28,6 +28,8 @@ def test_analyser_commandes():
     assert analyser("Q") == ("quit", "")
     assert analyser("HELP") == ("help", "")
     assert analyser("refresh") == ("refresh", "")
+    assert analyser("update") == ("update", "")
+    assert analyser("version") == ("version", "")
     assert analyser("[imp] pizza") == ("croiser", "[imp] pizza")
     assert analyser("player list") == ("croiser", "list")
     assert analyser("") == ("rien", "")

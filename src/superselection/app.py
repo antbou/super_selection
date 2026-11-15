@@ -23,6 +23,8 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   import <fichier>  fusionner le carnet d'un pote  ex : import kevin.json
   styles            les mots-clés de style et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
   refresh           recharger le classement
+  update            installer la dernière version
+  version           voir la version installée
   help              cette aide
   quit              sortir (ou Ctrl+D)
 
@@ -36,6 +38,8 @@ COMMANDES = {
     "import": "import",
     "styles": "styles",
     "refresh": "refresh",
+    "update": "update",
+    "version": "version",
     "help": "help",
     "?": "help",
     "quit": "quit",
@@ -45,7 +49,7 @@ COMMANDES = {
 }
 
 # proposées par l'auto-complétion
-NOMS_COMMANDES = ("show", "list", "styles", "export", "import", "refresh", "help", "quit")
+NOMS_COMMANDES = ("show", "list", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
 
 
 def analyser(ligne: str) -> tuple:

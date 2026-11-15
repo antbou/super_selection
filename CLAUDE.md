@@ -25,3 +25,5 @@ Vocabulaire : `GLOSSARY.md`. Utiliser ces termes dans le code et la doc.
 - Commandes en anglais (`show`, `list`, `help`…), tous les messages en français.
 - Installation Windows = une ligne (`install.ps1`, garder ce script en ASCII). Ne rien ajouter qui demande Python ou Git à l'utilisateur.
 - Les notes du propriétaire ne sont jamais écrasées par un import.
+- Chaque changement visible publié sur `main` : augmenter `version` dans `pyproject.toml` (+ `uv lock`), sinon personne n'est prévenu. `update` est la seule commande qui lance un programme externe (uv / PowerShell).
+- Couleurs : seulement via `couleurs.peindre` ; le texte doit rester identique sans couleur (`sans_couleur`).

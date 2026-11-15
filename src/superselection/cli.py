@@ -6,6 +6,7 @@ import builtins
 import os
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -17,6 +18,7 @@ from .carnet import Carnet
 from .classement import MODES, charger_classement, fetch_http
 from .couleurs import colorer_aide, peindre
 from .styles import aide_styles, tags_commencant_par
+from .version import fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
 
 Demander = Callable[[str, str], str]  # (question, valeur par défaut) -> réponse
 
@@ -84,6 +86,17 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             dossiers()[1] / "classement.json", fetch_http, maintenant()
         )
         afficher(c(message, "erreur") if message else c(f"Classement rechargé (saison {app.classement.saison}).", "ok"))
+    elif commande == "version":
+        afficher(f"superselection {version_installee()}")
+    elif commande == "update":
+        actuelle = version_installee()
+        nouvelle = nouvelle_version(actuelle, fetch_pyproject)
+        if nouvelle is None:
+            afficher(c(f"Déjà à jour (version {actuelle}).", "ok"))
+            return True
+        afficher(f"Mise à jour {actuelle} -> {nouvelle}…")
+        afficher(c(lancer_mise_a_jour(), "ok"))
+        return False
     elif commande == "show":
         afficher(app.voir(argument) if argument else c("Indique un nom.  ex : show [IMP] Pizza", "info"))
     elif commande == "croiser":
@@ -189,8 +202,16 @@ def main(argv: list | None = None) -> None:
         afficher(c(f"Carnet créé : {chemin_carnet}", "ok"))
 
     afficher("Chargement du classement top 100…", end=" ", flush=True)
-    classement, message = charger_classement(cache / "classement.json", fetch_http, maintenant())
-    afficher(c(message, "erreur") if message else c(f"saison {classement.saison} OK.", "ok"))
+    with ThreadPoolExecutor(max_workers=1) as fond:  # vérifie la version pendant le chargement
+        verif = fond.submit(nouvelle_version, version_installee(), fetch_pyproject)
+        classement, message = charger_classement(cache / "classement.json", fetch_http, maintenant())
+        afficher(c(message, "erreur") if message else c(f"saison {classement.saison} OK.", "ok"))
+        nouvelle = verif.result()
+    if nouvelle:
+        afficher(
+            c(f"Nouvelle version {nouvelle} disponible", "top10")
+            + f" (tu as {version_installee()}) : tape « {c('update', 'commande')} »."
+        )
 
     app = App(
         carnet, chemin_carnet, classement, aujourd_hui=aujourd_hui, maintenant=maintenant, couleur=_COULEUR

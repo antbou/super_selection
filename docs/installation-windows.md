@@ -31,7 +31,9 @@ C'est tout.
 
 ## Mettre à jour
 
-Recolle la même ligne qu'à l'étape 2. Ton carnet est conservé.
+Quand l'outil annonce « Nouvelle version disponible », tape `update`. Une nouvelle
+fenêtre fait la mise à jour et relance l'outil. Ton carnet est conservé. Ça marche aussi en
+recollant la ligne de l'étape 2.
 
 ## Lancer d'un double-clic
 
