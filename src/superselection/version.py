@@ -65,22 +65,29 @@ def etat_version(installee: str, lire: LireTexte) -> tuple:
     return "a_jour", publiee
 
 
-def lancer_mise_a_jour() -> str:
-    """Lance la mise à jour. Renvoie le message à afficher ; l'application doit ensuite quitter."""
-    if os.name == "nt":
-        # Sous Windows, superselection.exe est verrouillé tant qu'il tourne : on relance
-        # l'installateur dans une nouvelle fenêtre, qui attend que celle-ci soit fermée.
-        commande = f"Start-Sleep 2; irm {INSTALL_PS1} | iex; superselection"
-        subprocess.Popen(
-            ["powershell", "-NoExit", "-ExecutionPolicy", "ByPass", "-Command", commande],
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
-        )
-        return "Mise à jour lancée dans une nouvelle fenêtre. Celle-ci va se fermer."
-    uv = shutil.which("uv")
-    if uv is None:
-        return f"uv introuvable. Mets à jour à la main : uv tool install --force {ZIP}"
-    resultat = subprocess.run([uv, "tool", "install", "--force", "--reinstall", "--refresh", ZIP])
+def lancer_mise_a_jour() -> tuple:
+    """Lance la mise à jour. Renvoie (réussi, message) ; en cas de succès l'application doit ensuite quitter."""
+    try:
+        if os.name == "nt":
+            # Sous Windows, superselection.exe est verrouillé tant qu'il tourne : on relance
+            # l'installateur dans une nouvelle fenêtre, qui attend que celle-ci soit fermée.
+            # On relance par le chemin complet (le PATH hérité n'a pas toujours .local\bin).
+            commande = (
+                f"Start-Sleep 2; irm {INSTALL_PS1} | iex; "
+                '$exe = "$env:USERPROFILE\\.local\\bin\\superselection.exe"; '
+                "if (Test-Path $exe) { & $exe } else { superselection }"
+            )
+            subprocess.Popen(
+                ["powershell", "-NoExit", "-ExecutionPolicy", "ByPass", "-Command", commande],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+            return True, "Mise à jour lancée dans une nouvelle fenêtre. Celle-ci va se fermer."
+        uv = shutil.which("uv")
+        if uv is None:
+            return False, f"uv introuvable. Mets à jour à la main : uv tool install --force {ZIP}"
+        resultat = subprocess.run([uv, "tool", "install", "--force", "--reinstall", "--refresh", ZIP])
+    except OSError as erreur:
+        return False, f"Impossible de lancer la mise à jour : {erreur.strerror or erreur}"
     if resultat.returncode != 0:
-        return "La mise à jour a échoué (voir le message ci-dessus)."
-    return "Mise à jour terminée. Relance superselection."
-
+        return False, "La mise à jour a échoué (voir le message ci-dessus)."
+    return True, "Mise à jour terminée. Relance superselection."

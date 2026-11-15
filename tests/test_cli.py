@@ -436,3 +436,22 @@ def test_rename_renvoie_vers_edit_sans_creer_de_joueur(tmp_path, capsys):
     assert cli.executer(app, "rename Pizza > Pizzza", lambda q, d, genre="texte": pytest.fail("pas de question")) is True
     assert "« edit <nom> »" in capsys.readouterr().out
     assert app.carnet.joueurs == []
+
+
+def test_update_echec_reste_dans_l_outil_et_pas_de_succes(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "version_installee", lambda: "0.1.0")
+    monkeypatch.setattr(cli, "fetch_pyproject", lambda: 'version = "9.9.9"\n')
+    monkeypatch.setattr(cli, "lancer_mise_a_jour", lambda: (False, "uv introuvable."))
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, "update", lambda q, d, genre="texte": "") is True
+    sortie = capsys.readouterr().out
+    assert "uv introuvable." in sortie and "terminée" not in sortie
+
+
+def test_update_succes_quitte(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "version_installee", lambda: "0.1.0")
+    monkeypatch.setattr(cli, "fetch_pyproject", lambda: 'version = "9.9.9"\n')
+    monkeypatch.setattr(cli, "lancer_mise_a_jour", lambda: (True, "Mise à jour terminée."))
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, "update", lambda q, d, genre="texte": "") is False
+    assert "Mise à jour terminée." in capsys.readouterr().out

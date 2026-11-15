@@ -202,8 +202,9 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             afficher(c(f"Déjà à jour (version {actuelle}).", "ok"))
             return True
         afficher(f"Mise à jour {actuelle} -> {nouvelle}…")
-        afficher(c(lancer_mise_a_jour(), "ok"))
-        return False
+        reussi, message = lancer_mise_a_jour()
+        afficher(c(message, "ok" if reussi else "erreur"))
+        return not reussi  # échec : on reste dans l'outil
     elif commande == "top":
         mode, filtre = app.lire_top(argument)
         if filtre or not sys.stdin.isatty():
