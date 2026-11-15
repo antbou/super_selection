@@ -68,7 +68,7 @@ def c(texte: str, role: str) -> str:
 
 def executer(app: App, ligne: str, demander: Demander) -> bool:
     """Exécute une ligne. Renvoie False pour quitter."""
-    commande, argument = analyser(ligne)
+    commande, argument = analyser(ligne, app.noms())
     if commande == "rien":
         return True
     if commande == "quit":

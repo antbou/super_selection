@@ -149,3 +149,10 @@ def test_boucle_interactive_continue_si_l_enregistrement_echoue(isole, monkeypat
     sortie = capsys.readouterr().out
     assert "Impossible d'enregistrer le carnet" in sortie
     assert "À plus !" in sortie
+
+
+def test_joueur_nomme_comme_une_commande_est_croise(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Show Me")
+    assert cli.executer(app, "show me", lambda q, d: "") is True
+    assert app.carnet.trouver("Show Me").rencontres == 2

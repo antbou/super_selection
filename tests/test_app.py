@@ -145,3 +145,12 @@ def test_export_impossible_donne_un_message(tmp_path):
     fichier.write_text("x", encoding="utf-8")
     texte = app.exporter(str(fichier / "sous" / "antho.json"))
     assert "Impossible d'écrire" in texte
+
+
+def test_analyser_nom_connu_qui_ressemble_a_une_commande():
+    connus = ["Show Me", "Q"]
+    assert analyser("show me", connus) == ("croiser", "show me")
+    assert analyser("q", connus) == ("croiser", "q")
+    assert analyser("show Bob", connus) == ("show", "Bob")
+    assert analyser("player list", connus) == ("croiser", "list")
+    assert analyser("Q") == ("quit", "")

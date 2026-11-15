@@ -51,11 +51,17 @@ COMMANDES = {
 NOMS_COMMANDES = ("show", "list", "styles", "export", "import", "refresh", "update", "version", "help", "quit")
 
 
-def analyser(ligne: str) -> tuple:
-    """Découpe une ligne saisie en (commande, argument)."""
+def analyser(ligne: str, noms_connus=()) -> tuple:
+    """Découpe une ligne saisie en (commande, argument).
+
+    Une ligne qui est exactement le nom d'un joueur connu (à la casse près) est toujours
+    une rencontre, même si elle commence par une commande (« Show Me », « Q »).
+    """
     ligne = ligne.strip()
     if not ligne:
         return "rien", ""
+    if ligne.casefold() in {n.casefold() for n in noms_connus}:
+        return "croiser", ligne
     mot, _, reste = ligne.partition(" ")
     commande = COMMANDES.get(mot.casefold())
     if commande is None:
