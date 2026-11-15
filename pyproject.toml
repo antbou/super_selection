@@ -1,0 +1,23 @@
+[project]
+name = "superselection"
+version = "0.1.0"
+description = "Carnet d'adversaires pour War Selection : rang dans le top 100 et style de jeu."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "prompt_toolkit>=3.0",
+    "platformdirs>=4.0",
+]
+
+[project.scripts]
+superselection = "superselection.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
