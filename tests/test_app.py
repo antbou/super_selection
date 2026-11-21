@@ -87,7 +87,7 @@ def test_liste_en_tete_tri_alphabetique_et_note_tronquee(tmp_path):
     app.memoriser("zed", "x" * 80)
     lignes = sans_couleur(app.liste()).splitlines()
     assert lignes[0] == "3 joueur(s) :"
-    assert lignes[1].split() == ["Nom", "Note", "Traits", "Vu"]
+    assert lignes[1].split() == ["Nom", "Traits", "Note", "Vu"]
     assert lignes[2].endswith("1x, 15/11/2026")
     assert [l.split()[0] for l in lignes[2:]] == ["Alice", "zed", "妮蔻"]
     assert "x" * 49 + "…" in lignes[3] and "x" * 50 not in lignes[3]
@@ -535,3 +535,33 @@ def test_show_ne_redemande_pas_la_saison_passee_deux_fois(tmp_path):
     app.changer_classement(app.classement)
     app.voir("Bob")
     assert len(appels) == 2 * 28
+
+
+def test_en_tetes_de_list_et_top_en_couleur(tmp_path):
+    from superselection.couleurs import ROLES
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.couleur = True
+    code = f"\x1b[{ROLES['entete']}m"
+    assert code + "Nom" in app.liste().splitlines()[1]
+    assert code + "Rang" in app.top("1v1").splitlines()[1]
+
+
+def test_show_dit_qui_a_croise_le_joueur(tmp_path):
+    app = nouvelle_app(tmp_path)
+    autre = Carnet(auteur="Kevin")
+    autre.croiser("Bob", quand="2026-11-10T10:00")
+    autre.noter("Bob", "noob", maintenant="2026-11-10T10:00")
+    autre.sauver(tmp_path / "kevin.json")
+    app.importer(str(tmp_path / "kevin.json"))
+    assert "Croisé par Kevin." in sans_couleur(app.voir("Bob"))
+    app.croiser("Bob")
+    fiche = sans_couleur(app.voir("Bob"))
+    assert "Croisé par Antho, Kevin." in fiche and "Croisé 1 fois" in fiche
+    assert "Croisé par" not in sans_couleur(app.croiser("Bob"))  # en partie : fiche courte
+
+
+def test_show_seul_moi(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    assert "Croisé par Antho." in sans_couleur(app.voir("Bob"))

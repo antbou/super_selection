@@ -14,6 +14,7 @@ ROLES = {
     "info": "2",  # texte secondaire : grisé
     "auteur": "95",  # pseudos des auteurs (« Antho », « Kevin ») : magenta
     "trait": "97",  # texte du trait : blanc
+    "entete": "1;4;93",  # en-têtes de colonnes (list, top) : jaune vif, gras, souligné
     "commande": "93",  # commandes dans l'aide : jaune
     "ok": "92",  # confirmation : vert
     "erreur": "91",  # erreur : rouge

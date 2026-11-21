@@ -214,10 +214,15 @@ class App:
             lignes += self._lignes_saisons(nom)
         else:
             lignes.append(self._ligne_rangs(nom))
+        croise_par = self._croise_par(joueur) if joueur else []
+        if historique and croise_par:  # show : qui l'a croisé (moi, puis les auteurs importés)
+            lignes.append(
+                "  Croisé par " + ", ".join(self._c(n, "auteur") for n in croise_par) + "."
+            )
         if joueur is None or joueur.rencontres == 0:
-            autres = self._croise_par(joueur) if joueur else []
-            texte = f"Croisé par {', '.join(autres)}." if autres else "Jamais croisé."
-            lignes.append("  " + self._c(texte, "info"))
+            if not (historique and croise_par):
+                texte = f"Croisé par {', '.join(croise_par)}." if croise_par else "Jamais croisé."
+                lignes.append("  " + self._c(texte, "info"))
         elif deja_compte:
             lignes.append(
                 f"  Croisé {joueur.rencontres} fois — "
@@ -307,8 +312,10 @@ class App:
             titre += f" — « {filtre.strip()} » : {len(gardees)}"
         if not gardees:
             return titre + "\n  " + self._c("Aucun joueur ne correspond.", "info")
-        colonne = min(max(largeur(l["name"]) for _, l in gardees), 30)
-        lignes = [self._c("Rang " + ajuster("Nom", colonne) + "  Points", "info")]
+        colonne = max(3, min(max(largeur(l["name"]) for _, l in gardees), 30))  # au moins « Nom »
+        lignes = [
+            self._c("Rang", "entete") + " " + self._c("Nom", "entete") + " " * (colonne - 3 + 2) + self._c("Points", "entete")
+        ]
         for position, ligne in gardees:
             vu = self._c(f"  vu {vus[ligne['name'].casefold()]}x", "info") if ligne["name"].casefold() in vus else ""
             lignes.append(
@@ -405,26 +412,28 @@ class App:
         cellules = [
             (
                 j.nom,
-                tronquer(j.memo, 50),
                 traits(j),
+                tronquer(j.memo, 50),
                 f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "",
             )
             for j in joueurs
         ]
-        en_tete = ("Nom", "Note", "Traits", "Vu")
-        plafonds = (30, 50, 60, 16)
+        en_tete = ("Nom", "Traits", "Note", "Vu")
+        plafonds = (30, 60, 50, 16)
         colonnes = [min(max(largeur(c[i]) for c in cellules + [en_tete]), plafonds[i]) for i in range(4)]
-        roles = ("nom", None, "trait", "info")
+        roles = ("nom", "trait", None, "info")
 
-        def rangee(textes, colorer: bool) -> str:
+        def rangee(textes, roles) -> str:
             # la dernière colonne n'est pas complétée : rien en fin de ligne, en couleur comme sans
-            morceaux = [ajuster(t, l) for t, l in zip(textes[:-1], colonnes)] + [textes[-1]]
-            if colorer:
-                morceaux = [self._c(m, r) if r and m.strip() else m for m, r in zip(morceaux, roles)]
+            # couleur sur le texte seul, espaces de remplissage ensuite (pas de soulignement qui déborde)
+            morceaux = [
+                (self._c(t, r) if r else t) + " " * max(0, l - largeur(t))
+                for t, l, r in zip(textes, colonnes, roles)
+            ]
             return sans_fin("  " + "  ".join(morceaux))
 
-        lignes = [f"{len(joueurs)} joueur(s) :", self._c(rangee(en_tete, False), "info")]
-        lignes += [rangee(c, True) for c in cellules]
+        lignes = [f"{len(joueurs)} joueur(s) :", rangee(en_tete, ("entete",) * 4)]
+        lignes += [rangee(c, roles) for c in cellules]
         return "\n".join(lignes)
 
     def exporter(self, chemin: str) -> str:
