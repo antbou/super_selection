@@ -40,6 +40,9 @@ Nouvelle version 0.3.0 disponible (installée : 0.2.0) : « update ».
 La commande `update` installe la dernière version. Sous Windows, la mise à jour s'exécute
 dans une nouvelle fenêtre puis relance l'outil. Le carnet est conservé.
 
+Juste après une publication, GitHub peut encore annoncer l'ancienne version pendant
+quelques minutes. `update --force` réinstalle la dernière version sans vérifier.
+
 ## Utilisation
 
 ```text
@@ -87,13 +90,13 @@ superselection "[IMP] Pizza"
 | `top [1v1\|2v2]`   | afficher le top 100, recherche en tapant                | `top 2v2`           |
 | `show <nom>`       | fiche + saisons passées dans le top 100, sans compter   | `show Unloukee`     |
 | `edit <nom>`       | modifier nom, trait, note (« - » efface), sans compter  | `edit Pizza`        |
-| `list`             | lister les joueurs (A → Z, écritures non latines à la fin) | `list`           |
+| `list`             | lister les joueurs, concis (A → Z, non latins à la fin) | `list`              |
 | `delete <nom>`     | supprimer un joueur du carnet (confirmation)            | `delete Pizza`      |
 | `reset`            | vider le carnet (confirmation)                          | `reset`             |
 | `export <fichier>` | exporter le carnet vers un fichier                      | `export antho.json` |
 | `import <fichier>` | fusionner un carnet exporté                             | `import kevin.json` |
 | `refresh`          | recharger le classement                                 | `refresh`           |
-| `update`           | installer la dernière version                           | `update`            |
+| `update [--force]` | installer la dernière version (`--force` : sans vérifier) | `update --force`  |
 | `version`          | afficher la version installée                           | `version`           |
 | `help`             | afficher l'aide                                         | `help`              |
 | `quit`             | quitter (aussi `q`, `exit`, Ctrl+D)                     | `q`                 |
@@ -145,9 +148,8 @@ Paramètres → Heure et langue → Langue → Ajouter une langue (le module de 
 La fusion ajoute les joueurs inconnus et les traits de l'exportateur, **signés de son
 pseudo**. Les traits et notes du destinataire ne sont jamais modifiés. Le compteur
 « croisé N fois » ne compte que les rencontres du propriétaire du carnet. Un import ultérieur
-d'une version plus récente met à jour les traits de l'exportateur. Dans `list`, la colonne
-« Croisé par » indique qui connaît le joueur : le propriétaire s'il l'a croisé, puis les
-auteurs des traits importés.
+d'une version plus récente met à jour les traits de l'exportateur. `list` reste concise (sans
+les auteurs) ; `show` détaille chaque trait avec son auteur.
 
 ## Données
 

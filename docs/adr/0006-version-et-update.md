@@ -7,3 +7,5 @@ Au lancement, l'outil lit `version` dans le `pyproject.toml` de `main` (raw.gith
 ## Conséquences
 
 Les installations en 0.1.0 (avant cette fonction) ne sont jamais prévenues : il faut les réinstaller une fois à la main.
+
+`update --force` (ou `-f`) saute la vérification et réinstalle quand même : `raw.githubusercontent.com` garde `pyproject.toml` en cache 5 minutes, donc juste après une publication l'ancienne version est encore annoncée. L'archive `main.zip`, elle, est à jour ; la réinstallation récupère donc bien le dernier code.

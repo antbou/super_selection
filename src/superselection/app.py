@@ -29,7 +29,7 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   export <fichier>  exporter le carnet vers un fichier   ex : export antho.json
   import <fichier>  fusionner un carnet exporté          ex : import kevin.json
   refresh           recharger le classement
-  update            installer la dernière version
+  update [--force]  installer la dernière version (--force : réinstaller sans vérifier)
   version           afficher la version installée
   help              afficher cette aide
   quit              quitter (ou Ctrl+D)
@@ -386,41 +386,45 @@ class App:
         return noms + sorted((a for a in joueur.traits if a != moi), key=str.casefold)
 
     def liste(self) -> str:
-        """Joueurs du carnet par ordre alphabétique, écritures non latines à la fin, avec un en-tête."""
+        """Joueurs du carnet par ordre alphabétique, écritures non latines à la fin, avec un en-tête.
+        Concise : ni « croisé par » ni auteur des traits (ils restent dans `show`)."""
         joueurs = sorted(
             (j for j in self.carnet.joueurs if j.rencontres or j.traits or j.memo),
             key=lambda j: cle_alphabetique(j.nom),
         )
         if not joueurs:
             return "Aucun joueur dans le carnet."
+        def traits(j: Joueur) -> str:
+            # sans les auteurs (concis) : mon trait d'abord, chaque trait identique une seule fois
+            textes = dict.fromkeys(
+                decorer(n.texte)
+                for _, n in sorted(j.traits.items(), key=lambda a: a[0] != self.carnet.auteur)
+            )
+            return " | ".join(textes)
+
         cellules = [
             (
                 j.nom,
-                ", ".join(self._croise_par(j)),
-                f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "",
                 tronquer(j.memo, 50),
-                j,
+                traits(j),
+                f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "",
             )
             for j in joueurs
         ]
-        en_tete = ("Nom", "Croisé par", "Vu", "Note")
-        plafonds = (30, 30, 16, 50)
+        en_tete = ("Nom", "Note", "Traits", "Vu")
+        plafonds = (30, 50, 60, 16)
         colonnes = [min(max(largeur(c[i]) for c in cellules + [en_tete]), plafonds[i]) for i in range(4)]
-        roles = ("nom", "auteur", "info", None)
+        roles = ("nom", None, "trait", "info")
 
         def rangee(textes, colorer: bool) -> str:
-            morceaux = [ajuster(t, l) for t, l in zip(textes, colonnes)]
+            # la dernière colonne n'est pas complétée : rien en fin de ligne, en couleur comme sans
+            morceaux = [ajuster(t, l) for t, l in zip(textes[:-1], colonnes)] + [textes[-1]]
             if colorer:
-                morceaux = [self._c(m, r) if r else m for m, r in zip(morceaux, roles)]
-            return "  " + "  ".join(morceaux)
+                morceaux = [self._c(m, r) if r and m.strip() else m for m, r in zip(morceaux, roles)]
+            return sans_fin("  " + "  ".join(morceaux))
 
-        lignes = [f"{len(joueurs)} joueur(s) :", self._c(rangee(en_tete, False) + "  Traits", "info")]
-        for *textes, j in cellules:
-            traits = self._c(" | ", "info").join(
-                self._c(a, "auteur") + ": " + decorer(n.texte) for a, n in j.traits.items()
-            )
-            ligne = rangee(textes, True) + "  " + traits
-            lignes.append(ligne if traits else sans_fin(ligne))
+        lignes = [f"{len(joueurs)} joueur(s) :", self._c(rangee(en_tete, False), "info")]
+        lignes += [rangee(c, True) for c in cellules]
         return "\n".join(lignes)
 
     def exporter(self, chemin: str) -> str:

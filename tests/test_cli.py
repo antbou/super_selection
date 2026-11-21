@@ -394,7 +394,7 @@ def test_traits_proposes_des_le_debut_sans_taper_de_lettre(tmp_path):
     assert "noob" not in apres_virgule  # déjà retenu
 
 
-def test_edit_et_delete_ne_proposent_que_les_noms_du_carnet(tmp_path):
+def test_edit_delete_et_show_ne_proposent_que_les_noms_du_carnet(tmp_path):
     from prompt_toolkit.document import Document
 
     app = nouvelle_app(tmp_path)
@@ -406,7 +406,8 @@ def test_edit_et_delete_ne_proposent_que_les_noms_du_carnet(tmp_path):
 
     assert propose("edit Un") == [] and propose("delete Un") == []
     assert propose("edit Mar") == ["Marco"]
-    assert "Unloukee" in propose("show Un")
+    assert propose("show Un") == [] and propose("show Mar") == ["Marco"]
+    assert "Unloukee" in propose("Un")  # saisie directe (rencontre) : tout le top 100
 
 
 def test_session_principale_garde_ses_noms_apres_une_question_de_trait(tmp_path):
@@ -509,3 +510,20 @@ def test_traits_absent_de_l_aide_et_de_la_completion():
     from superselection.app import AIDE, NOMS_COMMANDES
     assert "traits" not in NOMS_COMMANDES
     assert not any(l.strip().startswith("traits") for l in AIDE.splitlines())
+
+
+@pytest.mark.parametrize("ligne", ["update --force", "update -f"])
+def test_update_force_reinstalle_sans_verifier_la_version(tmp_path, monkeypatch, capsys, ligne):
+    monkeypatch.setattr(cli, "fetch_pyproject", lambda: pytest.fail("pas de vérification"))
+    monkeypatch.setattr(cli, "lancer_mise_a_jour", lambda: (True, "Mise à jour terminée."))
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, ligne, lambda q, d, genre="texte": "") is False
+    sortie = capsys.readouterr().out
+    assert "Réinstallation forcée" in sortie and "Mise à jour terminée." in sortie
+
+
+def test_update_option_inconnue(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "lancer_mise_a_jour", lambda: pytest.fail("pas de mise à jour"))
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, "update --vite", lambda q, d, genre="texte": "") is True
+    assert "update --force" in capsys.readouterr().out

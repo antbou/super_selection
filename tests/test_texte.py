@@ -23,6 +23,7 @@ def test_largeur_compte_double_les_caracteres_larges():
     assert largeur("abc") == 3
     assert largeur("妮蔻") == 4
     assert ajuster("妮蔻", 6) == "妮蔻  "
+    assert largeur("🛡️ defence") == largeur("🐣 defence") == 10
 
 
 def test_tronquer():

@@ -87,29 +87,57 @@ def test_liste_en_tete_tri_alphabetique_et_note_tronquee(tmp_path):
     app.memoriser("zed", "x" * 80)
     lignes = sans_couleur(app.liste()).splitlines()
     assert lignes[0] == "3 joueur(s) :"
-    assert lignes[1].split() == ["Nom", "Croisé", "par", "Vu", "Note", "Traits"]
+    assert lignes[1].split() == ["Nom", "Note", "Traits", "Vu"]
+    assert lignes[2].endswith("1x, 15/11/2026")
     assert [l.split()[0] for l in lignes[2:]] == ["Alice", "zed", "妮蔻"]
     assert "x" * 49 + "…" in lignes[3] and "x" * 50 not in lignes[3]
-    assert "Antho" in lignes[2] and "1x, 15/11/2026" in lignes[2]
+    assert "1x, 15/11/2026" in lignes[2] and "Antho" not in lignes[2]
 
 
-def test_liste_joueur_importe_donne_l_auteur_pas_jamais_croise(tmp_path):
+def test_liste_sans_auteurs_mais_show_les_garde(tmp_path):
     app = nouvelle_app(tmp_path)
     autre = Carnet(auteur="Kevin")
     autre.croiser("Bob", quand="2026-11-10T10:00")
     autre.noter("Bob", "noob", maintenant="2026-11-10T10:00")
     autre.sauver(tmp_path / "kevin.json")
     app.importer(str(tmp_path / "kevin.json"))
+    app.croiser("Bob")
+    app.noter("Bob", "pro")
     liste = sans_couleur(app.liste())
     assert "jamais croisé" not in liste.lower()
-    ligne = liste.splitlines()[2]
-    assert ligne.split()[:2] == ["Bob", "Kevin"]
-    assert "Antho" not in ligne
+    assert "Kevin" not in liste and "Antho" not in liste and "Croisé par" not in liste
+    assert "👑 pro | 🐣 noob" in liste.splitlines()[2]
+    fiche = sans_couleur(app.voir("Bob"))
+    assert "Trait (Kevin) : 🐣 noob" in fiche and "Trait (Antho) : 👑 pro" in fiche
+
+
+def test_show_joueur_importe_donne_l_auteur(tmp_path):
+    app = nouvelle_app(tmp_path)
+    autre = Carnet(auteur="Kevin")
+    autre.croiser("Bob", quand="2026-11-10T10:00")
+    autre.noter("Bob", "noob", maintenant="2026-11-10T10:00")
+    autre.sauver(tmp_path / "kevin.json")
+    app.importer(str(tmp_path / "kevin.json"))
     fiche = sans_couleur(app.voir("Bob"))
     assert "Jamais croisé" not in fiche and "Croisé par Kevin" in fiche
+
+
+def test_liste_vu_aligne_a_droite_malgre_les_emojis(tmp_path):
+    app = nouvelle_app(tmp_path)
     app.croiser("Bob")
-    ligne = sans_couleur(app.liste()).splitlines()[2]
-    assert "Antho, Kevin" in ligne
+    app.noter("Bob", "defence, pro")
+    app.croiser("Al")
+    lignes = sans_couleur(app.liste()).splitlines()
+    from superselection.texte import largeur
+    assert len({largeur(l) for l in lignes[2:]}) == 1  # même rencontre : même largeur totale
+
+
+def test_liste_traits_identiques_une_seule_fois(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.noter("Bob", "noob")
+    app.carnet.trouver("Bob").traits["Kevin"] = app.carnet.trouver("Bob").traits["Antho"]
+    assert sans_couleur(app.liste()).count("noob") == 1
 
 
 def test_export_puis_import_chez_le_pote(tmp_path):

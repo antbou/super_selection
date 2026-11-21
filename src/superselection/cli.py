@@ -195,6 +195,15 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
         afficher(f"superselection {version_installee()}")
     elif commande == "update":
         actuelle = version_installee()
+        if argument.casefold() in ("--force", "-f"):
+            # sans vérifier la version publiée (le cache de GitHub peut avoir quelques minutes de retard)
+            afficher(f"Réinstallation forcée de la dernière version (installée : {actuelle})…")
+            reussi, message = lancer_mise_a_jour()
+            afficher(c(message, "ok" if reussi else "erreur"))
+            return not reussi
+        if argument:
+            afficher(c(f"Option inconnue : {argument}.  ex : update, ou update --force", "erreur"))
+            return True
         etat, nouvelle = etat_version(actuelle, fetch_pyproject)
         if etat == "injoignable":
             afficher(c("Impossible de vérifier la dernière version (pas d'internet ?). Réessayer plus tard.", "erreur"))
@@ -335,9 +344,9 @@ def _completeurs(app: App):
             commande = COMMANDES.get(mot.casefold()) if espace else None
             if commande in ("import", "export"):
                 yield from chemins.get_completions(Document(reste), complete_event)
-            elif commande in ("edit", "delete"):  # seulement ce qui est dans le carnet
+            elif commande in ("edit", "delete", "show"):  # seulement les joueurs déjà dans le carnet
                 yield from self._noms(reste, [j.nom for j in app.carnet.joueurs])
-            elif commande in ("show", "croiser"):
+            elif commande == "croiser":
                 yield from self._noms(reste)
             elif texte:
                 if not espace:

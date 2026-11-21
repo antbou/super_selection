@@ -24,11 +24,20 @@ def cle_alphabetique(nom: str) -> tuple:
 
 
 def largeur(texte: str) -> int:
-    """Largeur à l'écran : les caractères larges (chinois, japonais…) prennent deux colonnes."""
-    return sum(
-        0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF" else 1
-        for c in texte
-    )
+    """Largeur à l'écran : les caractères larges (chinois, emojis…) prennent deux colonnes.
+    Le sélecteur emoji (U+FE0F) rend large le caractère précédent (🛡️) ; les signes combinants
+    et le liant U+200D ne prennent pas de place."""
+    total, precedent = 0, 0
+    for c in texte:
+        if c == "\ufe0f":
+            total += 2 - precedent if precedent == 1 else 0
+            precedent = 2
+            continue
+        if unicodedata.combining(c) or c == "\u200d":
+            continue
+        precedent = 2 if unicodedata.east_asian_width(c) in "WF" else 1
+        total += precedent
+    return total
 
 
 def ajuster(texte: str, colonnes: int) -> str:
