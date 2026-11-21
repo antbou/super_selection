@@ -85,9 +85,9 @@ superselection "[IMP] Pizza"
 |--------------------|---------------------------------------------------------|---------------------|
 | `<nom>`            | croiser un joueur, puis noter son trait                 | `[IMP] Pizza`       |
 | `top [1v1\|2v2]`   | afficher le top 100, recherche en tapant                | `top 2v2`           |
-| `show <nom>`       | afficher la fiche, sans compter de rencontre            | `show Unloukee`     |
+| `show <nom>`       | fiche + saisons passées dans le top 100, sans compter   | `show Unloukee`     |
 | `edit <nom>`       | modifier nom, trait, note (« - » efface), sans compter  | `edit Pizza`        |
-| `list`             | lister les joueurs croisés, du plus récent              | `list`              |
+| `list`             | lister les joueurs (A → Z, écritures non latines à la fin) | `list`           |
 | `delete <nom>`     | supprimer un joueur du carnet (confirmation)            | `delete Pizza`      |
 | `reset`            | vider le carnet (confirmation)                          | `reset`             |
 | `traits`           | lister les mots-clés de trait et leurs emojis           | `traits`            |
@@ -146,7 +146,9 @@ Paramètres → Heure et langue → Langue → Ajouter une langue (le module de 
 La fusion ajoute les joueurs inconnus et les traits de l'exportateur, **signés de son
 pseudo**. Les traits et notes du destinataire ne sont jamais modifiés. Le compteur
 « croisé N fois » ne compte que les rencontres du propriétaire du carnet. Un import ultérieur
-d'une version plus récente met à jour les traits de l'exportateur.
+d'une version plus récente met à jour les traits de l'exportateur. Dans `list`, la colonne
+« Croisé par » indique qui connaît le joueur : le propriétaire s'il l'a croisé, puis les
+auteurs des traits importés.
 
 ## Données
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
@@ -11,7 +12,7 @@ from .carnet import Carnet, Joueur
 from .classement import MODES, Classement
 from .couleurs import peindre, role_rang
 from .traits import aide_traits, decorer, valider
-from .texte import sans_controle
+from .texte import ajuster, cle_alphabetique, largeur, sans_controle, tronquer
 
 AIDE = """\
 Saisir le nom d'un adversaire : affiche son rang dans le top 100, compte la
@@ -20,7 +21,7 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
 
   <nom>             croiser un joueur              ex : [IMP] Pizza
   top [1v1|2v2]     afficher le top 100, recherche en tapant (Tab = changer de mode)
-  show <nom>        afficher la fiche (3 dernières saisons), sans compter de rencontre
+  show <nom>        afficher la fiche (saisons dans le top 100), sans compter
   edit <nom>        modifier nom, trait et note (champs pré-remplis), sans compter
   list              lister les joueurs déjà croisés
   delete <nom>      supprimer un joueur du carnet (confirmation)
@@ -83,6 +84,10 @@ def analyser(ligne: str, noms_connus=()) -> tuple:
     if commande in ("import", "export"):
         reste = reste.strip("\"'")
     return commande, reste
+
+
+def sans_fin(texte: str) -> str:
+    return texte.rstrip(" ")
 
 
 def _date_fr(iso: str | None) -> str:
@@ -160,31 +165,41 @@ class App:
                 morceaux.append(f"{mode} : " + self._c("hors top 100", "hors"))
         return "  " + prefixe + self._c("   ·   ", "info").join(morceaux)
 
-    def _saison_passee(self, saison: int) -> Classement | None:
-        """Classement d'une saison passée, mémorisé pour la session (même un échec : serveur muet = une seule attente)."""
+    def _saisons_passees_chargees(self, saisons: list) -> dict:
+        """Classements des saisons passées, mémorisés pour la session (même un échec : serveur muet =
+        une seule attente). Les saisons manquantes sont téléchargées en parallèle."""
         if self.saison_passee is None:
-            return None
-        if saison not in self._saisons_passees:
-            self._saisons_passees[saison] = self.saison_passee(saison)
-        return self._saisons_passees[saison]
+            return {}
+        manquantes = [n for n in saisons if n not in self._saisons_passees]
+        if manquantes:
+            with ThreadPoolExecutor(max_workers=8) as groupe:
+                for n, classement in zip(manquantes, groupe.map(self.saison_passee, manquantes)):
+                    self._saisons_passees[n] = classement
+        return {n: self._saisons_passees[n] for n in saisons}
 
     def changer_classement(self, classement: Classement | None) -> None:
         self.classement = classement
         self._saisons_passees.clear()
 
     def _lignes_saisons(self, nom: str) -> list:
-        """Rangs de la saison en cours et des 2 précédentes, une ligne par saison (ADR 0012)."""
+        """La saison en cours, puis chaque saison passée où le joueur est dans le top 100,
+        de la plus récente à la plus ancienne (ADR 0019)."""
         actuelle = self.classement.saison
-        lignes = []
-        for saison in (actuelle, actuelle - 1, actuelle - 2):
-            if saison < 1:
-                break
-            etiquette = self._c(f"Saison {saison} : ", "info")
-            ancien = self.classement if saison == actuelle else self._saison_passee(saison)
+        lignes = [self._ligne_rangs(nom, self.classement, self._c(f"Saison {actuelle} : ", "info"))]
+        passees = self._saisons_passees_chargees(list(range(actuelle - 1, 0, -1)))
+        if self.saison_passee is None:
+            return lignes
+        trouvees, indisponibles = 0, []
+        for saison, ancien in passees.items():
             if ancien is None:
-                lignes.append("  " + self._c(f"Saison {saison} : indisponible", "info"))
-            else:
-                lignes.append(self._ligne_rangs(nom, ancien, etiquette))
+                indisponibles.append(str(saison))
+            elif any(ancien.rangs(nom, mode) for mode in MODES):
+                trouvees += 1
+                lignes.append(self._ligne_rangs(nom, ancien, self._c(f"Saison {saison} : ", "info")))
+        if not trouvees:
+            lignes.append("  " + self._c("Saisons passées : jamais dans le top 100", "info"))
+        if indisponibles:
+            lignes.append("  " + self._c("Saisons indisponibles : " + ", ".join(indisponibles), "info"))
         return lignes
 
     def _fiche(
@@ -201,7 +216,9 @@ class App:
         else:
             lignes.append(self._ligne_rangs(nom))
         if joueur is None or joueur.rencontres == 0:
-            lignes.append("  " + self._c("Jamais croisé.", "info"))
+            autres = self._croise_par(joueur) if joueur else []
+            texte = f"Croisé par {', '.join(autres)}." if autres else "Jamais croisé."
+            lignes.append("  " + self._c(texte, "info"))
         elif deja_compte:
             lignes.append(
                 f"  Croisé {joueur.rencontres} fois — "
@@ -281,21 +298,26 @@ class App:
             return self._c("Classement indisponible (réessayer avec « refresh »).", "erreur")
         cle = filtre.strip().casefold()
         vus = {j.nom.casefold(): j.rencontres for j in self.carnet.joueurs if j.rencontres}
-        lignes = []
-        for position, ligne in enumerate(self.classement.lignes.get(mode, []), start=1):
-            if cle in ligne["name"].casefold():
-                vu = self._c(f"  vu {vus[ligne['name'].casefold()]}x", "info") if ligne["name"].casefold() in vus else ""
-                lignes.append(
-                    self._c(f"#{position:<4}", role_rang(position))
-                    + self._c(ligne["name"], "nom")
-                    + self._c(f"  {ligne['rating']} pts", "info")
-                    + vu
-                )
+        gardees = [
+            (position, ligne)
+            for position, ligne in enumerate(self.classement.lignes.get(mode, []), start=1)
+            if cle in ligne["name"].casefold()
+        ]
         titre = f"Top 100 {mode} (saison {self.classement.saison})"
         if cle:
-            titre += f" — « {filtre.strip()} » : {len(lignes)}"
-        if not lignes:
+            titre += f" — « {filtre.strip()} » : {len(gardees)}"
+        if not gardees:
             return titre + "\n  " + self._c("Aucun joueur ne correspond.", "info")
+        colonne = min(max(largeur(l["name"]) for _, l in gardees), 30)
+        lignes = [self._c("Rang " + ajuster("Nom", colonne) + "  Points", "info")]
+        for position, ligne in gardees:
+            vu = self._c(f"  vu {vus[ligne['name'].casefold()]}x", "info") if ligne["name"].casefold() in vus else ""
+            lignes.append(
+                self._c(f"#{position:<4}", role_rang(position))
+                + self._c(ajuster(ligne["name"], colonne), "nom")
+                + self._c(f"  {ligne['rating']} pts", "info")
+                + vu
+            )
         return titre + "\n" + "\n".join("  " + l for l in lignes)
 
     def mon_trait(self, nom: str) -> str:
@@ -358,19 +380,48 @@ class App:
         self._sauver()
         return self._c(f"{ancien} renommé en {nouveau}.", "ok")
 
+    def _croise_par(self, joueur: Joueur) -> list:
+        """Qui connaît ce joueur : le propriétaire s'il l'a croisé (ou noté), puis les auteurs des traits importés."""
+        moi = self.carnet.auteur
+        noms = [moi] if (joueur.rencontres or joueur.memo or moi in joueur.traits) else []
+        return noms + sorted((a for a in joueur.traits if a != moi), key=str.casefold)
+
     def liste(self) -> str:
-        joueurs = [j for j in self.carnet.recents() if j.rencontres or j.traits or j.memo]
+        """Joueurs du carnet par ordre alphabétique, écritures non latines à la fin, avec un en-tête."""
+        joueurs = sorted(
+            (j for j in self.carnet.joueurs if j.rencontres or j.traits or j.memo),
+            key=lambda j: cle_alphabetique(j.nom),
+        )
         if not joueurs:
             return "Aucun joueur dans le carnet."
-        largeur = min(max(len(j.nom) for j in joueurs), 30)
-        lignes = [f"{len(joueurs)} joueur(s) :"]
-        for j in joueurs:
-            traits = self._c(" | ", "info").join(
-                self._c(a, "auteur") + ": " + decorer(n.texte)
-                for a, n in j.traits.items()
+        cellules = [
+            (
+                j.nom,
+                ", ".join(self._croise_par(j)),
+                f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "",
+                tronquer(j.memo, 50),
+                j,
             )
-            vu = f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "jamais croisé"
-            lignes.append(f"  {self._c(f'{j.nom:<{largeur}}', 'nom')}  {self._c(f'{vu:<16}', 'info')}  {traits}")
+            for j in joueurs
+        ]
+        en_tete = ("Nom", "Croisé par", "Vu", "Note")
+        plafonds = (30, 30, 16, 50)
+        colonnes = [min(max(largeur(c[i]) for c in cellules + [en_tete]), plafonds[i]) for i in range(4)]
+        roles = ("nom", "auteur", "info", None)
+
+        def rangee(textes, colorer: bool) -> str:
+            morceaux = [ajuster(t, l) for t, l in zip(textes, colonnes)]
+            if colorer:
+                morceaux = [self._c(m, r) if r else m for m, r in zip(morceaux, roles)]
+            return "  " + "  ".join(morceaux)
+
+        lignes = [f"{len(joueurs)} joueur(s) :", self._c(rangee(en_tete, False) + "  Traits", "info")]
+        for *textes, j in cellules:
+            traits = self._c(" | ", "info").join(
+                self._c(a, "auteur") + ": " + decorer(n.texte) for a, n in j.traits.items()
+            )
+            ligne = rangee(textes, True) + "  " + traits
+            lignes.append(ligne if traits else sans_fin(ligne))
         return "\n".join(lignes)
 
     def exporter(self, chemin: str) -> str:

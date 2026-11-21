@@ -22,7 +22,7 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
   « Hors top 100 » veut dire absent du classement, pas « inconnu ».
 - **Top** (`top`) : vue du classement d’un mode, filtrable en tapant (ADR 0015). Ne compte aucune rencontre.
 - **Saison** : numéro croissant (29 en novembre 2026). La saison en cours est la dernière
-  qui a des joueurs classés en 1v1 ; elle est détectée automatiquement. `show` affiche aussi les 2 saisons précédentes (ADR 0012).
+  qui a des joueurs classés en 1v1 ; elle est détectée automatiquement. `show` affiche aussi chaque saison passée où le joueur était dans le top 100, de la plus récente à la plus ancienne (ADR 0019).
 - **Export / Import (fusion)** : l'export écrit le carnet dans un fichier pour le transmettre à un autre joueur ;
   l'import fusionne le carnet d'un autre joueur dans le sien. La fusion ajoute les joueurs qui ont
   au moins un trait d'un autre auteur, ajoute ou met à jour les traits des autres auteurs

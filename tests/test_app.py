@@ -80,6 +80,38 @@ def test_liste(tmp_path):
     assert "Bob" in app.liste() and "noob" in app.liste()
 
 
+def test_liste_en_tete_tri_alphabetique_et_note_tronquee(tmp_path):
+    app = nouvelle_app(tmp_path)
+    for nom in ("妮蔻", "zed", "Alice"):
+        app.croiser(nom)
+    app.memoriser("zed", "x" * 80)
+    lignes = sans_couleur(app.liste()).splitlines()
+    assert lignes[0] == "3 joueur(s) :"
+    assert lignes[1].split() == ["Nom", "Croisé", "par", "Vu", "Note", "Traits"]
+    assert [l.split()[0] for l in lignes[2:]] == ["Alice", "zed", "妮蔻"]
+    assert "x" * 49 + "…" in lignes[3] and "x" * 50 not in lignes[3]
+    assert "Antho" in lignes[2] and "1x, 15/11/2026" in lignes[2]
+
+
+def test_liste_joueur_importe_donne_l_auteur_pas_jamais_croise(tmp_path):
+    app = nouvelle_app(tmp_path)
+    autre = Carnet(auteur="Kevin")
+    autre.croiser("Bob", quand="2026-11-10T10:00")
+    autre.noter("Bob", "noob", maintenant="2026-11-10T10:00")
+    autre.sauver(tmp_path / "kevin.json")
+    app.importer(str(tmp_path / "kevin.json"))
+    liste = sans_couleur(app.liste())
+    assert "jamais croisé" not in liste.lower()
+    ligne = liste.splitlines()[2]
+    assert ligne.split()[:2] == ["Bob", "Kevin"]
+    assert "Antho" not in ligne
+    fiche = sans_couleur(app.voir("Bob"))
+    assert "Jamais croisé" not in fiche and "Croisé par Kevin" in fiche
+    app.croiser("Bob")
+    ligne = sans_couleur(app.liste()).splitlines()[2]
+    assert "Antho, Kevin" in ligne
+
+
 def test_export_puis_import_chez_le_pote(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
@@ -273,23 +305,30 @@ def _saison(n, top_1v1, top_2v2):
     return Classement(saison=n, lignes={"1v1": top_1v1, "2v2": top_2v2}, recupere_le="")
 
 
-def test_show_donne_trois_saisons(tmp_path):
-    anciennes = {
-        28: _saison(28, [{"name": "x", "rating": 1}, {"name": "Unloukee", "rating": 900}], []),
-        27: _saison(27, [], [{"name": "unloukee", "rating": 500}]),
-    }
+def test_show_liste_les_saisons_ou_le_joueur_est_dans_le_top(tmp_path):
+    anciennes = {n: _saison(n, [{"name": "x", "rating": 1}], []) for n in range(1, 29)}
+    anciennes[28] = _saison(28, [{"name": "x", "rating": 1}, {"name": "Unloukee", "rating": 900}], [])
+    anciennes[12] = _saison(12, [], [{"name": "unloukee", "rating": 500}])
     texte = nouvelle_app(tmp_path, anciennes=anciennes).voir("Unloukee")
     lignes = texte.splitlines()
-    assert [l.split(" :")[0].strip() for l in lignes[1:4]] == ["Saison 29", "Saison 28", "Saison 27"]
+    assert [l.split(" :")[0].strip() for l in lignes[1:4]] == ["Saison 29", "Saison 28", "Saison 12"]
     assert "#2 (800 pts)" in lignes[1] and "2v2 : #1 (600 pts)" in lignes[1]
     assert "1v1 : #2 (900 pts)" in lignes[2] and "2v2 : hors top 100" in lignes[2]
     assert "1v1 : hors top 100" in lignes[3] and "2v2 : #1 (500 pts)" in lignes[3]
+    assert "Saison 27" not in texte and "indisponible" not in texte
+
+
+def test_show_jamais_dans_le_top_les_saisons_passees(tmp_path):
+    anciennes = {n: _saison(n, [{"name": "x", "rating": 1}], []) for n in range(1, 29)}
+    texte = nouvelle_app(tmp_path, anciennes=anciennes).voir("Bob")
+    assert "Saison 29 : 1v1 : hors top 100" in texte
+    assert "Saisons passées : jamais dans le top 100" in texte
 
 
 def test_show_saison_passee_indisponible(tmp_path):
-    texte = nouvelle_app(tmp_path, anciennes={}).voir("Unloukee")
-    assert "Saison 28 : indisponible" in texte
-    assert "Saison 27 : indisponible" in texte
+    anciennes = {n: _saison(n, [{"name": "x", "rating": 1}], []) for n in range(1, 27)}
+    texte = nouvelle_app(tmp_path, anciennes=anciennes).voir("Unloukee")
+    assert "Saisons indisponibles : 28, 27" in texte
 
 
 def test_croiser_ne_montre_pas_l_historique(tmp_path):
@@ -352,6 +391,11 @@ def test_top_liste_le_classement_du_mode(tmp_path):
     assert "Top 100 1v1 (saison 29)" in texte
     assert "#1" in texte and "[IMP] Pizza" in texte and "872 pts" in texte
     assert "#2" in texte and "Unloukee" in texte
+
+
+def test_top_a_un_en_tete(tmp_path):
+    lignes = sans_couleur(nouvelle_app(tmp_path).top("1v1")).splitlines()
+    assert lignes[1].split() == ["Rang", "Nom", "Points"]
 
 
 def test_top_2v2(tmp_path):
@@ -459,7 +503,7 @@ def test_show_ne_redemande_pas_la_saison_passee_deux_fois(tmp_path):
     app.saison_passee = passee
     app.voir("Bob")
     app.voir("Bob")
-    assert sorted(appels) == [27, 28]
+    assert sorted(appels) == list(range(1, 29))
     app.changer_classement(app.classement)
     app.voir("Bob")
-    assert sorted(appels) == [27, 27, 28, 28]
+    assert len(appels) == 2 * 28
