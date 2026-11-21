@@ -494,3 +494,18 @@ def test_update_succes_quitte(tmp_path, monkeypatch, capsys):
     app = nouvelle_app(tmp_path)
     assert cli.executer(app, "update", lambda q, d, genre="texte": "") is False
     assert "Mise à jour terminée." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("ligne", ["traits", "styles"])
+def test_traits_n_existe_plus_et_ne_cree_pas_de_joueur(tmp_path, capsys, ligne):
+    app = nouvelle_app(tmp_path)
+    assert cli.executer(app, ligne, lambda q, d, genre="texte": pytest.fail("pas de question")) is True
+    sortie = capsys.readouterr().out
+    assert "n'existe plus" in sortie and "Tab" in sortie
+    assert app.carnet.joueurs == []
+
+
+def test_traits_absent_de_l_aide_et_de_la_completion():
+    from superselection.app import AIDE, NOMS_COMMANDES
+    assert "traits" not in NOMS_COMMANDES
+    assert not any(l.strip().startswith("traits") for l in AIDE.splitlines())

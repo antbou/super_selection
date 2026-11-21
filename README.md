@@ -90,7 +90,6 @@ superselection "[IMP] Pizza"
 | `list`             | lister les joueurs (A → Z, écritures non latines à la fin) | `list`           |
 | `delete <nom>`     | supprimer un joueur du carnet (confirmation)            | `delete Pizza`      |
 | `reset`            | vider le carnet (confirmation)                          | `reset`             |
-| `traits`           | lister les mots-clés de trait et leurs emojis           | `traits`            |
 | `export <fichier>` | exporter le carnet vers un fichier                      | `export antho.json` |
 | `import <fichier>` | fusionner un carnet exporté                             | `import kevin.json` |
 | `refresh`          | recharger le classement                                 | `refresh`           |

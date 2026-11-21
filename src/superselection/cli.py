@@ -18,7 +18,7 @@ from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet, CarnetInvalide
 from .classement import MODES, charger_classement, charger_saison, fetch_http
 from .couleurs import colorer_aide, peindre, sans_couleur
-from .traits import aide_traits, tags_commencant_par, valider
+from .traits import tags_commencant_par, valider
 from .texte import sans_controle
 from .version import etat_version, fetch_pyproject, lancer_mise_a_jour, nouvelle_version, version_installee
 
@@ -142,7 +142,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
     if commande == "help":
         afficher(colorer_aide(AIDE) if _COULEUR else AIDE)
     elif commande == "traits":
-        afficher(aide_traits())
+        afficher(c("`traits` n'existe plus : à la question « Trait ? », Tab affiche les mots-clés et leurs emojis.", "info"))
     elif commande == "list":
         afficher(app.liste())
     elif commande == "delete":

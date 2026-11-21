@@ -10,7 +10,7 @@ from dataclasses import dataclass
 class Tag:
     nom: str  # mot conseillé, proposé par l'auto-complétion
     emoji: str
-    sens: str  # explication affichée par la commande `traits`
+    sens: str  # explication affichée quand un trait est refusé
     variantes: tuple = ()  # autres orthographes reconnues
 
 

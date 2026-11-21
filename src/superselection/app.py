@@ -28,7 +28,6 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   reset             vider le carnet (confirmation)
   export <fichier>  exporter le carnet vers un fichier   ex : export antho.json
   import <fichier>  fusionner un carnet exporté          ex : import kevin.json
-  traits            lister les mots-clés de trait et leurs emojis (🔥 aggressive, 🛡️ defence, 🐣 noob…)
   refresh           recharger le classement
   update            installer la dernière version
   version           afficher la version installée
@@ -47,7 +46,7 @@ COMMANDES = {
     "reset": "reset",
     "export": "export",
     "import": "import",
-    "traits": "traits",
+    "traits": "traits",  # supprimé (ADR 0020) : renvoie vers Tab à la saisie du trait, plus annoncé
     "styles": "traits",  # ancien nom (ADR 0017), plus annoncé
     "rename": "rename",  # supprimé (ADR 0016) : renvoie vers edit, plus annoncé
     "refresh": "refresh",
@@ -62,7 +61,7 @@ COMMANDES = {
 }
 
 # proposées par l'auto-complétion
-NOMS_COMMANDES = ("show", "edit", "top", "list", "delete", "reset", "traits", "export", "import", "refresh", "update", "version", "help", "quit")
+NOMS_COMMANDES = ("show", "edit", "top", "list", "delete", "reset", "export", "import", "refresh", "update", "version", "help", "quit")
 
 
 def analyser(ligne: str, noms_connus=()) -> tuple:
