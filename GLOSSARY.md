@@ -12,7 +12,7 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
   les rencontres du propriétaire du carnet, jamais celles d'un autre auteur.
 - **Edit** (`edit`) : changer le nom, le trait et la note perso d'un joueur déjà croisé sans compter de rencontre (ADR 0016), typiquement en fin de partie.
 - **Trait** (`Note`, ancien « style ») : façon de jouer d'un joueur, choisie parmi les cinq **mots-clés de trait** (« aggressive, tryhard », ADR 0017). Un joueur a au plus un trait par **auteur**. Dans le fichier carnet, la clé JSON reste `styles`.
-- **Note perso** (`Joueur.memo`, proposée après le trait à chaque rencontre) : texte libre privé du propriétaire sur un joueur. Une seule par joueur ; jamais exportée ni fusionnée (ADR 0014). À ne pas confondre avec le **trait** (classe `Note`, partagé).
+- **Note perso** (`Joueur.memo`, proposée après le trait à chaque rencontre) : texte libre du propriétaire sur un joueur. Une seule par joueur et par auteur ; exportée, et fusionnée signée de son auteur comme un trait, sans jamais écraser celle du propriétaire (ADR 0021). Les notes des autres sont dans `Joueur.notes`. À ne pas confondre avec le **trait** (classe `Note`, partagé).
 - **Mot-clé de trait** (`Tag`, `traits.py`) : l'un des cinq mots permis (`aggressive`, `defence`,
   `noob`, `tryhard`, `pro`), affiché avec son emoji. Le texte est stocké sans emoji ; l'emoji est ajouté à l'affichage.
 - **Classement** (`Classement`) : le top 100 officiel d'une **saison**, en 1v1 et en 2v2, lu sur
@@ -25,5 +25,6 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
   qui a des joueurs classés en 1v1 ; elle est détectée automatiquement. `show` affiche aussi chaque saison passée où le joueur était dans le top 100, de la plus récente à la plus ancienne (ADR 0019).
 - **Export / Import (fusion)** : l'export écrit le carnet dans un fichier pour le transmettre à un autre joueur ;
   l'import fusionne le carnet d'un autre joueur dans le sien. La fusion ajoute les joueurs qui ont
-  au moins un trait d'un autre auteur, ajoute ou met à jour les traits des autres auteurs
-  (seulement si leur version est plus récente) et ne touche jamais aux traits du propriétaire.
+  au moins un trait ou une note d'un autre auteur, ajoute ou met à jour les traits et notes des
+  autres auteurs (seulement si leur version est plus récente) et ne touche jamais aux traits ni à
+  la note du propriétaire. L'export va sur le Bureau par défaut (`<pseudo>.json`).

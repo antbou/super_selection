@@ -235,17 +235,59 @@ def test_memo_enregistre_efface_et_survit_au_fichier(tmp_path):
     assert "memo" not in c.vers_dict()["joueurs"][0]
 
 
-def test_memo_jamais_exporte_ni_fusionne(tmp_path):
-    c = Carnet(auteur="Antho")
-    c.memoriser("Pizza", "privé")
-    c.sauver(tmp_path / "export.json", avec_memos=False)
-    assert "privé" not in (tmp_path / "export.json").read_text(encoding="utf-8")
+def test_note_exportee_puis_fusionnee_signee_par_son_auteur(tmp_path):
+    kevin = Carnet(auteur="Kevin")
+    kevin.memoriser("Pizza", "joue le soir", maintenant="2026-11-15T20:00")
+    kevin.sauver(tmp_path / "kevin.json")
+    assert "joue le soir" in (tmp_path / "kevin.json").read_text(encoding="utf-8")
 
-    pote = Carnet(auteur="Kevin")
-    pote.noter("Pizza", "rush", maintenant="2026-11-15T20:00")
-    pote.trouver("Pizza").memo = "memo du pote"
-    c.fusionner(pote)
-    assert c.trouver("Pizza").memo == "privé"
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Pizza", "privé", maintenant="2026-11-14T20:00")
+    bilan = moi.fusionner(Carnet.charger(tmp_path / "kevin.json"))
+    assert (bilan.notes_ajoutees, bilan.notes_maj) == (1, 0)
+    pizza = moi.trouver("Pizza")
+    assert pizza.memo == "privé"  # ma note jamais écrasée
+    assert pizza.notes["Kevin"].texte == "joue le soir"
+
+
+def test_note_importee_seule_suffit_a_ajouter_le_joueur():
+    kevin = Carnet(auteur="Kevin")
+    kevin.memoriser("Bob", "m'a insulté", maintenant="2026-11-15T20:00")
+    moi = Carnet(auteur="Antho")
+    assert moi.fusionner(kevin).joueurs_ajoutes == 1
+    assert moi.trouver("Bob").notes["Kevin"].texte == "m'a insulté"
+
+
+def test_note_importee_remplacee_seulement_par_plus_recente():
+    moi = Carnet(auteur="Antho")
+    v2 = Carnet(auteur="Kevin")
+    v2.memoriser("Bob", "nouvelle", maintenant="2026-11-16T20:00")
+    moi.fusionner(v2)
+    v1 = Carnet(auteur="Kevin")
+    v1.memoriser("Bob", "ancienne", maintenant="2026-11-10T20:00")
+    assert moi.fusionner(v1).notes_maj == 0
+    assert moi.trouver("Bob").notes["Kevin"].texte == "nouvelle"
+    v3 = Carnet(auteur="kevin")
+    v3.memoriser("Bob", "encore plus récente", maintenant="2026-11-20T20:00")
+    assert moi.fusionner(v3).notes_maj == 1
+    assert list(moi.trouver("Bob").notes) == ["Kevin"]
+    assert moi.trouver("Bob").notes["Kevin"].texte == "encore plus récente"
+
+
+def test_note_d_un_tiers_reexportee_et_ma_note_revenue_ignoree(tmp_path):
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Bob", "à moi", maintenant="2026-11-15T20:00")
+    lea = Carnet(auteur="Léa")
+    lea.memoriser("Bob", "de Léa", maintenant="2026-11-15T20:00")
+    kevin = Carnet(auteur="Kevin")
+    kevin.fusionner(lea)
+    kevin.fusionner(moi)
+    kevin.sauver(tmp_path / "kevin.json")
+    moi.memoriser("Bob", "à moi, modifiée", maintenant="2026-11-16T20:00")
+    moi.fusionner(Carnet.charger(tmp_path / "kevin.json"))
+    bob = moi.trouver("Bob")
+    assert bob.memo == "à moi, modifiée"
+    assert set(bob.notes) == {"Léa"}  # ma propre note revenue par Kevin n'est pas recopiée
 
 
 def test_fusion_compare_les_auteurs_sans_la_casse():

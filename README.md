@@ -93,7 +93,7 @@ superselection "[IMP] Pizza"
 | `list`             | lister les joueurs, concis (A → Z, non latins à la fin) | `list`              |
 | `delete <nom>`     | supprimer un joueur du carnet (confirmation)            | `delete Pizza`      |
 | `reset`            | vider le carnet (confirmation)                          | `reset`             |
-| `export <fichier>` | exporter le carnet vers un fichier                      | `export antho.json` |
+| `export [fichier]` | exporter le carnet (sur le Bureau par défaut)           | `export antho.json` |
 | `import <fichier>` | fusionner un carnet exporté                             | `import kevin.json` |
 | `refresh`          | recharger le classement                                 | `refresh`           |
 | `update [--force]` | installer la dernière version (`--force` : sans vérifier) | `update --force`  |
@@ -141,15 +141,18 @@ Paramètres → Heure et langue → Langue → Ajouter une langue (le module de 
 
 ### Partage de carnet
 
-1. Exporter : `export antho.json`, puis transmettre le fichier (Discord, mail…).
+1. Exporter : `export` (crée `<pseudo>.json` sur le Bureau) ou `export antho.json`, puis
+   transmettre le fichier (Discord, mail…). Un chemin complet est utilisé tel quel.
 2. Importer, chez le destinataire : `import antho.json` (Windows : saisir `import `, puis
    glisser le fichier dans la fenêtre pour coller son chemin).
 
-La fusion ajoute les joueurs inconnus et les traits de l'exportateur, **signés de son
-pseudo**. Les traits et notes du destinataire ne sont jamais modifiés. Le compteur
+La fusion ajoute les joueurs inconnus, les traits et les notes perso de l'exportateur,
+**signés de son pseudo**. Les traits et notes du destinataire ne sont jamais modifiés.
+Attention : les notes perso sont lisibles par toute personne qui reçoit le fichier. Le compteur
 « croisé N fois » ne compte que les rencontres du propriétaire du carnet. Un import ultérieur
-d'une version plus récente met à jour les traits de l'exportateur. `list` reste concise (sans
-les auteurs) ; `show` détaille chaque trait avec son auteur.
+d'une version plus récente met à jour ses traits et ses notes ; une version plus ancienne est
+ignorée. `list` reste concise (sans les auteurs) ; `show` détaille chaque trait et chaque note
+avec son auteur.
 
 ## Données
 

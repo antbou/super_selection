@@ -26,7 +26,7 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   list              lister les joueurs déjà croisés
   delete <nom>      supprimer un joueur du carnet (confirmation)
   reset             vider le carnet (confirmation)
-  export <fichier>  exporter le carnet vers un fichier   ex : export antho.json
+  export [fichier]  exporter le carnet (sur le Bureau)   ex : export antho.json
   import <fichier>  fusionner un carnet exporté          ex : import kevin.json
   refresh           recharger le classement
   update [--force]  installer la dernière version (--force : réinstaller sans vérifier)
@@ -105,6 +105,7 @@ class App:
         maintenant: Callable[[], str],
         couleur: bool = False,
         saison_passee: Callable[[int], Classement | None] | None = None,
+        bureau: Path | None = None,
     ):
         self.carnet = carnet
         self.chemin_carnet = Path(chemin_carnet)
@@ -112,6 +113,7 @@ class App:
         self.maintenant = maintenant
         self.couleur = couleur
         self.saison_passee = saison_passee
+        self.bureau = bureau  # dossier par défaut de l'export (None : dossier courant)
         self._saisons_passees: dict = {}  # numéro de saison -> Classement | None, pour la session
         self._transactions = 0  # > 0 : les commandes modifient la mémoire, rien n'est écrit sur disque
 
@@ -184,7 +186,7 @@ class App:
         """La saison en cours, puis chaque saison passée où le joueur est dans le top 100,
         de la plus récente à la plus ancienne (ADR 0019)."""
         actuelle = self.classement.saison
-        lignes = [self._ligne_rangs(nom, self.classement, self._c(f"Saison {actuelle} : ", "info"))]
+        lignes = [self._ligne_rangs(nom, self.classement, self._c("Saison actuelle : ", "info"))]
         passees = self._saisons_passees_chargees(list(range(actuelle - 1, 0, -1)))
         if self.saison_passee is None:
             return lignes
@@ -236,6 +238,8 @@ class App:
             )
         if joueur and joueur.memo:
             lignes.append("  Note : " + joueur.memo)
+        for auteur, note in sorted((joueur.notes if joueur else {}).items(), key=lambda a: a[0].casefold()):
+            lignes.append(f"  Note ({self._c(auteur, 'auteur')}) : " + note.texte)
         traits = joueur.traits if joueur else {}
         if not traits:
             lignes.append("  Trait : " + self._c("pas encore noté", "info"))
@@ -337,7 +341,7 @@ class App:
 
     def memoriser(self, nom: str, texte: str) -> str:
         nom = self.nom_canonique(nom)
-        self.carnet.memoriser(nom, texte)
+        self.carnet.memoriser(nom, texte, maintenant=self.maintenant())
         if self.carnet.trouver(nom) is None:
             return self._c("Rien à effacer : joueur absent du carnet.", "info")
         self._sauver()
@@ -390,13 +394,14 @@ class App:
         """Qui connaît ce joueur : le propriétaire s'il l'a croisé (ou noté), puis les auteurs des traits importés."""
         moi = self.carnet.auteur
         noms = [moi] if (joueur.rencontres or joueur.memo or moi in joueur.traits) else []
-        return noms + sorted((a for a in joueur.traits if a != moi), key=str.casefold)
+        autres = {a.casefold(): a for a in [*joueur.traits, *joueur.notes] if a.casefold() != moi.casefold()}
+        return noms + sorted(autres.values(), key=str.casefold)
 
     def liste(self) -> str:
         """Joueurs du carnet par ordre alphabétique, écritures non latines à la fin, avec un en-tête.
         Concise : ni « croisé par » ni auteur des traits (ils restent dans `show`)."""
         joueurs = sorted(
-            (j for j in self.carnet.joueurs if j.rencontres or j.traits or j.memo),
+            (j for j in self.carnet.joueurs if j.rencontres or j.traits or j.memo or j.notes),
             key=lambda j: cle_alphabetique(j.nom),
         )
         if not joueurs:
@@ -413,7 +418,8 @@ class App:
             (
                 j.nom,
                 traits(j),
-                tronquer(j.memo, 50),
+                # ma note d'abord, puis celles des autres (sans leurs auteurs)
+                tronquer(" | ".join(dict.fromkeys(t for t in [j.memo, *(n.texte for n in j.notes.values())] if t)), 50),
                 f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "",
             )
             for j in joueurs
@@ -437,18 +443,22 @@ class App:
         return "\n".join(lignes)
 
     def exporter(self, chemin: str) -> str:
-        if not chemin:
-            return "Fichier manquant.  ex : export antho.json"
-        cible = Path(chemin).expanduser()
+        # sans fichier : <pseudo>.json ; un nom seul (chemin relatif) va sur le Bureau
+        cible = Path(chemin or self.carnet.auteur).expanduser()
+        if not cible.is_absolute() and self.bureau is not None:
+            cible = self.bureau / cible
         if cible.suffix == "":
             cible = cible.with_suffix(".json")
         if cible.resolve() == self.chemin_carnet.resolve():
             return self._c("Export impossible : ce fichier est le carnet lui-même.", "erreur")
         try:
-            self.carnet.sauver(cible, avec_memos=False)
+            self.carnet.sauver(cible)
         except OSError as erreur:
             return self._c(f"Impossible d'écrire {cible} : {erreur.strerror or erreur}", "erreur")
-        return f"Carnet exporté dans {cible.resolve()}."
+        return (
+            f"Carnet exporté dans {cible.resolve()}.\n"
+            + self._c("Notes perso incluses : lisibles par toute personne qui reçoit le fichier.", "info")
+        )
 
     def importer(self, chemin: str) -> str:
         if not chemin:
@@ -466,7 +476,8 @@ class App:
         self._sauver()
         return (
             f"Carnet de {autre.auteur} fusionné : {bilan.joueurs_ajoutes} joueur(s) ajouté(s), "
-            f"{bilan.traits_ajoutes} trait(s) ajouté(s), {bilan.traits_maj} trait(s) mis à jour. "
+            f"{bilan.traits_ajoutes} trait(s) ajouté(s), {bilan.traits_maj} trait(s) mis à jour, "
+            f"{bilan.notes_ajoutees} note(s) ajoutée(s), {bilan.notes_maj} note(s) mise(s) à jour. "
             "Traits et notes perso existants inchangés."
         )
 

@@ -339,7 +339,7 @@ def test_show_liste_les_saisons_ou_le_joueur_est_dans_le_top(tmp_path):
     anciennes[12] = _saison(12, [], [{"name": "unloukee", "rating": 500}])
     texte = nouvelle_app(tmp_path, anciennes=anciennes).voir("Unloukee")
     lignes = texte.splitlines()
-    assert [l.split(" :")[0].strip() for l in lignes[1:4]] == ["Saison 29", "Saison 28", "Saison 12"]
+    assert [l.split(" :")[0].strip() for l in lignes[1:4]] == ["Saison actuelle", "Saison 28", "Saison 12"]
     assert "#2 (800 pts)" in lignes[1] and "2v2 : #1 (600 pts)" in lignes[1]
     assert "1v1 : #2 (900 pts)" in lignes[2] and "2v2 : hors top 100" in lignes[2]
     assert "1v1 : hors top 100" in lignes[3] and "2v2 : #1 (500 pts)" in lignes[3]
@@ -349,7 +349,7 @@ def test_show_liste_les_saisons_ou_le_joueur_est_dans_le_top(tmp_path):
 def test_show_jamais_dans_le_top_les_saisons_passees(tmp_path):
     anciennes = {n: _saison(n, [{"name": "x", "rating": 1}], []) for n in range(1, 29)}
     texte = nouvelle_app(tmp_path, anciennes=anciennes).voir("Bob")
-    assert "Saison 29 : 1v1 : hors top 100" in texte
+    assert "Saison actuelle : 1v1 : hors top 100" in texte and "Saison 29" not in texte
     assert "Saisons passées : jamais dans le top 100" in texte
 
 
@@ -398,12 +398,28 @@ def test_note_donne_le_nom_officiel_et_apparait_dans_list(tmp_path):
     assert "Unloukee" in app.liste()
 
 
-def test_export_sans_les_notes_perso(tmp_path):
+def test_export_import_avec_les_notes(tmp_path):
     app = nouvelle_app(tmp_path)
-    app.memoriser("Bob", "secret")
-    app.exporter(str(tmp_path / "e.json"))
-    assert "secret" not in (tmp_path / "e.json").read_text(encoding="utf-8")
-    assert "secret" in (tmp_path / "carnet.json").read_text(encoding="utf-8")
+    app.croiser("Bob")
+    app.memoriser("Bob", "joue le soir")
+    message = app.exporter(str(tmp_path / "e.json"))
+    assert "notes perso incluses" in message.lower()
+    assert "joue le soir" in (tmp_path / "e.json").read_text(encoding="utf-8")
+
+    pote = App(
+        carnet=Carnet(auteur="Kevin"),
+        chemin_carnet=tmp_path / "kevin_carnet.json",
+        classement=None,
+        maintenant=lambda: "2026-11-15T21:00",
+    )
+    pote.memoriser("Bob", "rush")
+    texte = pote.importer(str(tmp_path / "e.json"))
+    assert "1 note(s) ajoutée(s), 0 note(s) mise(s) à jour" in texte
+    fiche = sans_couleur(pote.voir("Bob"))
+    assert "Note : rush" in fiche and "Note (Antho) : joue le soir" in fiche
+    assert "Croisé par Kevin, Antho." in fiche
+    assert "rush | joue le soir" in sans_couleur(pote.liste())
+    assert pote.mon_memo("Bob") == "rush"
 
 
 # --- top : classement complet avec recherche -------------------------------------
@@ -565,3 +581,26 @@ def test_show_seul_moi(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     assert "Croisé par Antho." in sans_couleur(app.voir("Bob"))
+
+
+def test_export_sur_le_bureau_par_defaut(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    app.bureau = tmp_path / "Bureau"
+    app.bureau.mkdir()
+    assert str(app.bureau / "Antho.json") in app.exporter("")
+    assert (app.bureau / "Antho.json").exists()
+    app.exporter("kevin")
+    assert (app.bureau / "kevin.json").exists()
+    ailleurs = tmp_path / "ailleurs.json"
+    app.exporter(str(ailleurs))  # chemin complet : tel quel
+    assert ailleurs.exists()
+
+
+def test_import_ne_cherche_pas_sur_le_bureau(tmp_path, monkeypatch):
+    app = nouvelle_app(tmp_path)
+    app.bureau = tmp_path / "Bureau"
+    app.bureau.mkdir()
+    Carnet(auteur="Kevin").sauver(app.bureau / "kevin.json")
+    monkeypatch.chdir(tmp_path)
+    assert "introuvable" in app.importer("kevin.json")

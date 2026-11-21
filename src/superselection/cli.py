@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from platformdirs import user_cache_dir, user_data_dir
+from platformdirs import user_cache_dir, user_data_dir, user_desktop_dir
 
 from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
 from .carnet import Carnet, CarnetInvalide
@@ -310,6 +310,15 @@ def _recherche_top(app: App, mode: str) -> None:
     application.run()
 
 
+def _bureau() -> Path:
+    """Le Bureau de l'utilisateur (Windows : y compris redirigé vers OneDrive), sinon le dossier perso."""
+    try:
+        bureau = Path(user_desktop_dir())
+    except Exception:  # dossier introuvable : on ne bloque pas le lancement
+        return Path.home()
+    return bureau if bureau.is_dir() else Path.home()
+
+
 def _completeurs(app: App):
     """Les trois compléteurs : noms + commandes, noms seuls (champ « Nom » d'edit), mots-clés de trait."""
     from prompt_toolkit.completion import Completer, Completion, PathCompleter
@@ -511,6 +520,7 @@ def _principal(argv: list) -> None:
         maintenant=maintenant,
         couleur=_COULEUR,
         saison_passee=lambda n: charger_saison(cache, fetch_http, n, maintenant()),
+        bureau=_bureau(),
     )
 
     if interactif:

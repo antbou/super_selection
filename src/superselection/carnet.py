@@ -32,7 +32,9 @@ class Joueur:
     rencontres: int = 0  # seulement les rencontres du propriétaire du carnet
     derniere: str | None = None  # date ISO de la dernière rencontre
     traits: dict = field(default_factory=dict)  # auteur -> Note
-    memo: str = ""  # note perso du propriétaire : jamais exportée ni fusionnée
+    memo: str = ""  # note perso du propriétaire (exportée ; jamais écrasée par un import)
+    memo_maj: str = ""  # date-heure ISO de la dernière modification de `memo`
+    notes: dict = field(default_factory=dict)  # notes perso des autres auteurs : auteur -> Note
 
 
 @dataclass
@@ -40,6 +42,8 @@ class Bilan:
     joueurs_ajoutes: int = 0
     traits_ajoutes: int = 0
     traits_maj: int = 0
+    notes_ajoutees: int = 0
+    notes_maj: int = 0
 
 
 class Carnet:
@@ -106,49 +110,48 @@ class Carnet:
         else:
             joueur.traits.pop(self.auteur, None)
 
-    def memoriser(self, nom: str, texte: str) -> None:
+    def memoriser(self, nom: str, texte: str, maintenant: str = "") -> None:
         """Remplace ma note perso pour ce joueur ; un texte vide l'efface (sans créer le joueur)."""
         texte = sans_controle(texte).strip()
         if texte:
-            self._obtenir(nom).memo = texte
+            joueur = self._obtenir(nom)
+            joueur.memo, joueur.memo_maj = texte, maintenant
         elif (joueur := self.trouver(nom)) is not None:
-            joueur.memo = ""
+            joueur.memo, joueur.memo_maj = "", ""
 
     def recents(self) -> list:
         return sorted(self.joueurs, key=lambda j: (j.derniere or "", j.nom.casefold()), reverse=True)
 
     def fusionner(self, autre: "Carnet") -> Bilan:
-        """Ajoute les joueurs et les traits d'un autre carnet.
+        """Ajoute les joueurs, les traits et les notes perso d'un autre carnet (ADR 0021).
 
-        Mes propres traits ne sont jamais écrasés ; le trait d'un autre auteur
-        n'est remplacé que par une version plus récente.
+        Mes propres traits et ma note ne sont jamais écrasés ; le trait ou la note d'un autre
+        auteur n'est remplacé que par une version plus récente.
         """
         bilan = Bilan()
         moi = self.auteur.casefold()
         for sien in autre.joueurs:
-            if not any(a.casefold() != moi for a in sien.traits):
+            ses_notes = dict(sien.notes)
+            if sien.memo:  # la note perso de l'exportateur, signée de son pseudo
+                ses_notes[autre.auteur] = Note(sien.memo, sien.memo_maj)
+            utiles = [a for a in [*sien.traits, *ses_notes] if a.casefold() != moi]
+            if not utiles:
                 continue  # rien d'utile à récupérer sur ce joueur
             mien = self.trouver(sien.nom)
             if mien is None:
                 mien = self._obtenir(sien.nom)
                 bilan.joueurs_ajoutes += 1
-            for auteur, note in sien.traits.items():
-                if auteur.casefold() == moi:
-                    continue
-                # clé déjà écrite dans mon carnet, à la casse près (Kevin = kevin)
-                cle = next((a for a in mien.traits if a.casefold() == auteur.casefold()), auteur)
-                actuelle = mien.traits.get(cle)
-                if actuelle is None:
-                    mien.traits[cle] = Note(note.texte, note.maj)
-                    bilan.traits_ajoutes += 1
-                elif note.maj > actuelle.maj and note.texte != actuelle.texte:
-                    mien.traits[cle] = Note(note.texte, note.maj)
-                    bilan.traits_maj += 1
+            ajoutes, maj = _fusionner_signes(mien.traits, sien.traits, moi)
+            bilan.traits_ajoutes += ajoutes
+            bilan.traits_maj += maj
+            ajoutes, maj = _fusionner_signes(mien.notes, ses_notes, moi)
+            bilan.notes_ajoutees += ajoutes
+            bilan.notes_maj += maj
         return bilan
 
     # --- fichier JSON -----------------------------------------------------
 
-    def vers_dict(self, avec_memos: bool = True) -> dict:
+    def vers_dict(self) -> dict:
         return {
             "version": VERSION,
             "auteur": self.auteur,
@@ -158,7 +161,8 @@ class Carnet:
                     "rencontres": j.rencontres,
                     "derniere": j.derniere,
                     "styles": {a: {"texte": n.texte, "maj": n.maj} for a, n in j.traits.items()},
-                    **({"memo": j.memo} if avec_memos and j.memo else {}),
+                    **({"memo": j.memo, "memo_maj": j.memo_maj} if j.memo else {}),
+                    **({"notes": {a: {"texte": n.texte, "maj": n.maj} for a, n in j.notes.items()}} if j.notes else {}),
                 }
                 for j in self.recents()
             ],
@@ -177,13 +181,13 @@ class Carnet:
         joueurs = [_lire_joueur(n, j) for n, j in enumerate(brut_joueurs, start=1)]
         return cls(auteur=sans_controle(auteur).strip() or "?", joueurs=joueurs)
 
-    def sauver(self, chemin: Path, avec_memos: bool = True) -> None:
+    def sauver(self, chemin: Path) -> None:
         chemin = Path(chemin)
         chemin.parent.mkdir(parents=True, exist_ok=True)
         temporaire = chemin.with_name(chemin.name + ".tmp")
         try:
             temporaire.write_text(
-                json.dumps(self.vers_dict(avec_memos), ensure_ascii=False, indent=2), encoding="utf-8"
+                json.dumps(self.vers_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
             )
             for essai in range(3):
                 try:
@@ -226,21 +230,51 @@ def _lire_joueur(numero: int, brut) -> Joueur:
     ):
         raise CarnetInvalide(f"{lieu} : « derniere » doit être une date AAAA-MM-JJ ou null")
 
-    brut_traits = brut.get("styles", {})
-    if not isinstance(brut_traits, dict):
-        raise CarnetInvalide(f"{lieu} : « styles » doit être un objet")
-    traits = {}
-    for auteur, note in brut_traits.items():
-        if not isinstance(note, dict) or not isinstance(note.get("texte"), str):
-            raise CarnetInvalide(f"{lieu} : le trait de « {auteur} » doit avoir un « texte »")
-        maj = note.get("maj", "")
-        if not isinstance(maj, str):
-            raise CarnetInvalide(f"{lieu} : « maj » du trait de « {auteur} » doit être un texte")
-        traits[sans_controle(auteur).strip()] = Note(sans_controle(note["texte"]).strip(), maj)
-    memo = brut.get("memo", "")
+    traits = _lire_signes(brut.get("styles", {}), lieu, "styles", "le trait")
+    notes = _lire_signes(brut.get("notes", {}), lieu, "notes", "la note")
+    memo, memo_maj = brut.get("memo", ""), brut.get("memo_maj", "")
     if not isinstance(memo, str):
         raise CarnetInvalide(f"{lieu} : « memo » doit être un texte")
-    return Joueur(nom=nom, rencontres=rencontres, derniere=derniere, traits=traits, memo=sans_controle(memo).strip())
+    if not isinstance(memo_maj, str):
+        raise CarnetInvalide(f"{lieu} : « memo_maj » doit être un texte")
+    return Joueur(
+        nom=nom, rencontres=rencontres, derniere=derniere, traits=traits,
+        memo=sans_controle(memo).strip(), memo_maj=memo_maj, notes=notes,
+    )
+
+
+def _lire_signes(brut, lieu: str, cle: str, quoi: str) -> dict:
+    """Lit un objet auteur -> {"texte", "maj"} (traits ou notes perso des autres)."""
+    if not isinstance(brut, dict):
+        raise CarnetInvalide(f"{lieu} : « {cle} » doit être un objet")
+    signes = {}
+    for auteur, note in brut.items():
+        if not isinstance(note, dict) or not isinstance(note.get("texte"), str):
+            raise CarnetInvalide(f"{lieu} : {quoi} de « {auteur} » doit avoir un « texte »")
+        maj = note.get("maj", "")
+        if not isinstance(maj, str):
+            raise CarnetInvalide(f"{lieu} : « maj » de {quoi} de « {auteur} » doit être un texte")
+        signes[sans_controle(auteur).strip()] = Note(sans_controle(note["texte"]).strip(), maj)
+    return signes
+
+
+def _fusionner_signes(miens: dict, siens: dict, moi: str) -> tuple:
+    """Fusionne des textes signés (auteur -> Note) : jamais les miens, les autres seulement
+    s'ils sont nouveaux ou plus récents. Renvoie (ajoutés, mis à jour)."""
+    ajoutes = maj = 0
+    for auteur, note in siens.items():
+        if auteur.casefold() == moi or not note.texte:
+            continue
+        # clé déjà écrite dans mon carnet, à la casse près (Kevin = kevin)
+        cle = next((a for a in miens if a.casefold() == auteur.casefold()), auteur)
+        actuelle = miens.get(cle)
+        if actuelle is None:
+            miens[cle] = Note(note.texte, note.maj)
+            ajoutes += 1
+        elif note.maj > actuelle.maj and note.texte != actuelle.texte:
+            miens[cle] = Note(note.texte, note.maj)
+            maj += 1
+    return ajoutes, maj
 
 
 def _trop_proche(derniere: str | None, quand: str) -> bool:
