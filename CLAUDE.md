@@ -11,7 +11,7 @@ l'utilisateur, le code (noms) et la doc sont en **français**.
 ## Architecture
 
 - `classement.py` : API top 100 (`fetch_http`), détection de la saison, cache hors ligne.
-- `carnet.py` : modèle `Carnet`/`Joueur`/`Note`, JSON, fusion.
+- `carnet.py` : modèle `Carnet`/`Joueur`/`Revision`, JSON (`notebook.json`, format 2), migration, fusion et conflits.
 - `app.py` : commandes pures qui renvoient du texte (`App`, `analyser`). Toute logique ici, testée.
 - `cli.py` : seule couche terminal (prompt_toolkit, auto-complétion, `main`). Garder mince.
 
@@ -26,6 +26,6 @@ Décisions : `docs/adr/` (une décision par fichier, numérotée). Les lire avan
 - Rester simple : l'utilisateur veut taper un nom, voir le rang, noter un trait. Pas de mode 2v2 spécial.
 - Commandes en anglais (`show`, `list`, `help`…), tous les messages en français.
 - Installation Windows = une ligne (`install.ps1`, garder ce script en ASCII). Ne rien ajouter qui demande Python ou Git à l'utilisateur.
-- Les notes du propriétaire ne sont jamais écrasées par un import.
+- Un import ne perd jamais rien : toute version du trait et de la note reste dans l'historique (ADR 0022). Les rencontres du propriétaire ne sont jamais modifiées par un import.
 - Chaque changement visible publié sur `main` : augmenter `version` dans `pyproject.toml` (+ `uv lock`), sinon personne n'est prévenu. `update` est la seule commande qui lance un programme externe (uv / PowerShell).
 - Couleurs : seulement via `couleurs.peindre` ; le texte doit rester identique sans couleur (`sans_couleur`).
