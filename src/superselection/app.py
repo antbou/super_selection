@@ -10,7 +10,28 @@ from typing import Callable
 
 HISTORIQUE_MAX = 10  # versions passées affichées dans show et edit
 
-from .carnet import Carnet, Conflit, Joueur, Revision
+# option de `import` -> stratégie (ADR 0022), dans l'ordre du menu
+STRATEGIES = {
+    "latest": "recente",
+    "keep-deleted": "sans_suppression",
+    "mine": "mienne",
+    "theirs": "sienne",
+    "merge": "fusion",
+    "ask": "un_par_un",
+}
+
+
+def nom_strategie(strategie: str, auteur: str) -> str:
+    return {
+        "recente": "la plus récente gagne",
+        "sans_suppression": "la plus récente, sans suppression",
+        "mienne": "toujours la mienne",
+        "sienne": f"toujours celle de {auteur}",
+        "fusion": "fusionner les deux",
+        "un_par_un": "choisir un par un",
+    }[strategie]
+
+from .carnet import Carnet, Difference, Joueur, Revision
 from .classement import MODES, Classement
 from .couleurs import peindre, role_rang
 from .traits import aide_traits, decorer, valider
@@ -30,7 +51,9 @@ Tab complète les noms (top 100 + joueurs déjà croisés).
   delete <nom>      supprimer un joueur du carnet (confirmation)
   reset             vider le carnet (confirmation)
   export [fichier]  exporter le carnet (sur le Bureau)   ex : export antho.json
-  import <fichier>  fusionner un carnet exporté (conflits : choix proposé)  ex : import kevin.json
+  import <fichier> [--latest|--keep-deleted|--mine|--theirs|--merge|--ask]
+                    fusionner un carnet exporté (confirmation, stratégie modifiable)
+                    ex : import kevin.json --mine
   refresh           recharger le classement
   update [--force]  installer la dernière version (--force : réinstaller sans vérifier)
   version           afficher la version installée
@@ -491,59 +514,118 @@ class App:
             + self._c("Notes et historique inclus : lisibles par toute personne qui reçoit le fichier.", "info")
         )
 
-    def importer(self, chemin: str, decider: Callable[[list, str], list] | None = None) -> str:
-        """Fusionne un carnet exporté : la version la plus récente l'emporte (ADR 0022).
+    @staticmethod
+    def lire_import(argument: str) -> tuple:
+        """Argument de `import` -> (chemin, stratégie, erreur) : « paul.json --mine »."""
+        reste, options = argument.strip(), []
+        while True:
+            avant, _, dernier = reste.rpartition(" ")
+            if not dernier.startswith("--"):
+                break
+            options.insert(0, dernier)
+            reste = avant.strip()
+        chemin = reste.strip().strip("\"'")
+        inconnues = [o for o in options if o[2:].casefold() not in STRATEGIES]
+        if inconnues or len(options) > 1:
+            permises = ", ".join(f"--{o}" for o in STRATEGIES)
+            quoi = f"Option inconnue : {inconnues[0]}." if inconnues else "Une seule stratégie à la fois."
+            return chemin, "recente", f"{quoi} Possibles : {permises}."
+        strategie = STRATEGIES[options[0][2:].casefold()] if options else "recente"
+        return chemin, strategie, ""
 
-        S'il y a des conflits (chacun a modifié de son côté), `decider(conflits, son_pseudo)` renvoie un choix
-        par conflit (« recente », « sans_suppression », « mienne », « sienne », « fusion ») ;
-        sans `decider`, la plus récente gagne. Ctrl+C dans `decider` remonte (l'appelant annule).
-        """
+    def ouvrir_import(self, chemin: str) -> tuple:
+        """(carnet lu, « ») ou (None, message d'erreur)."""
         if not chemin:
-            return "Fichier manquant.  ex : import kevin.json"
+            return None, "Fichier manquant.  ex : import kevin.json"
         source = Path(chemin).expanduser()
         try:
-            autre = Carnet.charger(source)
+            return Carnet.charger(source), ""
         except FileNotFoundError:
-            return self._c(f"Fichier introuvable : {source}", "erreur")
+            return None, self._c(f"Fichier introuvable : {source}", "erreur")
         except (ValueError, OSError) as erreur:  # JSONDecodeError et CarnetInvalide sont des ValueError
-            return self._c(
+            return None, self._c(
                 f"Ce fichier n'est pas un carnet superselection : {source} ({erreur})", "erreur"
             )
-        conflits = self.carnet.conflits(autre)
-        choix = decider(conflits, autre.auteur) if (conflits and decider) else ["recente"] * len(conflits)
-        bilan = self.carnet.fusionner(autre)
-        maintenant = self.maintenant()
-        appliques = sum(self.carnet.resoudre(c, ch, maintenant) for c, ch in zip(conflits, choix))
-        self._sauver()
-        message = (
-            f"Carnet de {autre.auteur} fusionné : {bilan.joueurs_ajoutes} joueur(s) ajouté(s), "
-            f"{bilan.versions_ajoutees} version(s) ajoutée(s) à l'historique, "
-            f"{bilan.traits_maj} trait(s) et {bilan.notes_maj} note(s) changé(s) "
-            "(la version la plus récente l'emporte)."
-        )
-        if conflits:
-            message += f" {len(conflits)} conflit(s), {appliques} choix enregistré(s) comme nouvelle version."
-        return message
 
-    def resume_conflits(self, conflits: list, auteur: str) -> str:
-        """« 3 conflit(s) avec Paul (2 note(s), 1 trait(s)), dont 1 suppression. »"""
-        notes = sum(c.champ == "note" for c in conflits)
-        suppressions = sum(not c.sienne.texte for c in conflits)
-        texte = f"{len(conflits)} conflit(s) avec {auteur} ({notes} note(s), {len(conflits) - notes} trait(s))"
-        if suppressions:
-            texte += f", dont {suppressions} suppression(s)"
+    def apercu_import(self, autre: Carnet) -> str:
+        """Ce que l'import va apporter, avant de confirmer (rien n'est modifié)."""
+        joueurs = versions = 0
+        for sien in autre.joueurs:
+            mien = self.carnet.trouver(sien.nom)
+            if mien is None:
+                if sien.historique_trait or sien.historique_note:
+                    joueurs += 1
+                    versions += len(sien.historique_trait) + len(sien.historique_note)
+                continue
+            for champ in ("trait", "note"):
+                versions += sum(r not in mien.historique(champ) for r in sien.historique(champ))
+        differences = self.carnet.differences(autre)
+        texte = (
+            f"Import de {autre.auteur} : {joueurs} joueur(s) à ajouter, {versions} version(s) nouvelle(s), "
+            f"{len(differences)} trait(s) ou note(s) différent(s) des tiens"
+        )
+        if differences:
+            conflits = sum(d.conflit for d in differences)
+            suppressions = sum(not d.sienne.texte for d in differences)
+            texte += f", dont {conflits} conflit(s) et {suppressions} suppression(s)"
         return texte + "."
 
-    def decrire_conflit(self, conflit: Conflit) -> str:
+    def appliquer_import(
+        self, autre: Carnet, strategie: str = "recente", choisir: Callable[[list, str], list] | None = None
+    ) -> str:
+        """Fusionne un carnet lu (ADR 0022), puis applique la stratégie à chaque trait ou note
+        différent du mien. « un_par_un » : `choisir(differences, son_pseudo)` renvoie un choix par
+        différence (sans `choisir` : la plus récente). Ctrl+C dans `choisir` remonte."""
+        differences = self.carnet.differences(autre)
+        if strategie == "un_par_un":
+            choix = choisir(differences, autre.auteur) if (choisir and differences) else []
+        else:
+            choix = [strategie] * len(differences)
+        avant = self._valeurs_actuelles()
+        bilan = self.carnet.fusionner(autre)
+        maintenant = self.maintenant()
+        appliques = sum(self.carnet.resoudre(d, ch, maintenant) for d, ch in zip(differences, choix))
+        self._sauver()
+        changes = [cle for cle, valeur in self._valeurs_actuelles().items() if avant.get(cle, "") != valeur]
+        notes = sum(champ == "note" for _, champ in changes)
+        message = (
+            f"Carnet de {autre.auteur} fusionné ({nom_strategie(strategie, autre.auteur)}) : "
+            f"{bilan.joueurs_ajoutes} joueur(s) ajouté(s), "
+            f"{bilan.versions_ajoutees} version(s) ajoutée(s) à l'historique, "
+            f"{len(changes) - notes} trait(s) et {notes} note(s) changé(s)."
+        )
+        if appliques:
+            message += f" {appliques} choix enregistré(s) comme nouvelle version."
+        return message
+
+    def _valeurs_actuelles(self) -> dict:
+        return {
+            (j.nom.casefold(), champ): (j.trait if champ == "trait" else j.note)
+            for j in self.carnet.joueurs
+            for champ in ("trait", "note")
+        }
+
+    def importer(self, argument: str, choisir: Callable[[list, str], list] | None = None) -> str:
+        """Import sans confirmation : « paul.json », « paul.json --mine »…"""
+        chemin, strategie, erreur = self.lire_import(argument)
+        if erreur:
+            return self._c(erreur, "erreur")
+        autre, erreur = self.ouvrir_import(chemin)
+        if autre is None:
+            return erreur
+        return self.appliquer_import(autre, strategie, choisir)
+
+    def decrire_difference(self, difference: Difference) -> str:
         """Les deux versions côte à côte, numérotées comme le choix proposé (1 = la mienne)."""
-        lignes = [self._c(conflit.nom, "nom") + f" — {conflit.champ}"]
-        versions = (conflit.mienne, conflit.sienne)
+        quoi = "conflit" if difference.conflit else f"modifiée par {difference.sienne.auteur} après la tienne"
+        lignes = [self._c(difference.nom, "nom") + f" — {difference.champ} " + self._c(f"({quoi})", "info")]
+        versions = (difference.mienne, difference.sienne)
         colonne = max(largeur(v.auteur) for v in versions)
         for numero, v in enumerate(versions, start=1):
             if v.texte:
-                texte = self._c(decorer(v.texte), "trait") if conflit.champ == "trait" else v.texte
+                texte = self._c(decorer(v.texte), "trait") if difference.champ == "trait" else v.texte
             else:
-                texte = self._c("(supprimé)" if conflit.champ == "trait" else "(supprimée)", "info")
+                texte = self._c("(supprimé)" if difference.champ == "trait" else "(supprimée)", "info")
             lignes.append(
                 f"  {numero}. " + self._c(ajuster(v.auteur, colonne), "auteur")
                 + f" ({_date_fr(v.maj)}) : " + texte

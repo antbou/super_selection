@@ -149,7 +149,7 @@ def test_export_puis_import_chez_le_pote(tmp_path):
     texte = pote.importer(str(fichier))
     assert "1 joueur(s) ajouté(s)" in texte
     assert "1 version(s) ajoutée(s) à l'historique, 1 trait(s) et 0 note(s) changé(s)" in texte
-    assert "la version la plus récente l'emporte" in texte and "conflit" not in texte
+    assert "(la plus récente gagne)" in texte and "choix" not in texte
     assert pote.trait_actuel("Bob") == "noob"  # trait commun : Kevin peut le modifier
 
 
@@ -407,7 +407,7 @@ def test_export_import_avec_les_notes(tmp_path):
     )
     pote.memoriser("Bob", "rush")  # 21:00, après celle d'Antho : conflit, la plus récente gagne
     texte = pote.importer(str(tmp_path / "e.json"))
-    assert "1 conflit(s), 0 choix enregistré(s)" in texte
+    assert "0 trait(s) et 0 note(s) changé(s)" in texte and "choix" not in texte
     fiche = sans_couleur(pote.voir("Bob"))
     assert "Note : rush  (Kevin, 15/11/2026)" in fiche
     assert "15/11/2026  Antho  note  : joue le soir" in fiche
@@ -650,7 +650,7 @@ def test_show_affiche_les_rencontres_des_autres(tmp_path):
     assert "vu" not in sans_couleur(app.top("1v1"))  # top : mes rencontres seulement
 
 
-def test_import_demande_un_choix_par_conflit(tmp_path):
+def _paul_en_conflit(tmp_path):
     app = nouvelle_app(tmp_path)
     app.memoriser("Bob", "rush")
     app.noter("Bob", "noob")
@@ -658,36 +658,81 @@ def test_import_demande_un_choix_par_conflit(tmp_path):
     paul.memoriser("Bob", "rush archers")
     paul.noter("Bob", "pro")
     paul.exporter(str(tmp_path / "paul.json"))
+    app.maintenant = lambda: "2026-11-17T10:00"
+    return app
+
+
+def test_import_un_par_un_demande_un_choix_par_difference(tmp_path):
+    app = _paul_en_conflit(tmp_path)
     vus = []
 
-    def decider(conflits, auteur):
+    def choisir(differences, auteur):
         assert auteur == "Paul"
-        vus.extend(conflits)
-        return ["mienne" if c.champ == "note" else "fusion" for c in conflits]
+        vus.extend(differences)
+        return ["mienne" if d.champ == "note" else "fusion" for d in differences]
 
-    app.maintenant = lambda: "2026-11-17T10:00"
-    texte = app.importer(str(tmp_path / "paul.json"), decider)
-    assert sorted(c.champ for c in vus) == ["note", "trait"]
-    assert "2 conflit(s), 2 choix enregistré(s)" in texte
+    texte = app.importer(str(tmp_path / "paul.json") + " --ask", choisir)
+    assert sorted(d.champ for d in vus) == ["note", "trait"]
+    assert "(choisir un par un)" in texte and "2 choix enregistré(s)" in texte
     assert app.note_actuelle("Bob") == "rush"
     assert app.trait_actuel("Bob") == "noob, pro"
     assert Carnet.charger(app.chemin_carnet).trouver("Bob").note == "rush"
 
 
-def test_import_sans_conflit_ne_demande_rien(tmp_path):
+@pytest.mark.parametrize(
+    "option, note, trait",
+    [
+        ("", "rush archers", "pro"),
+        (" --latest", "rush archers", "pro"),
+        (" --mine", "rush", "noob"),
+        (" --MINE", "rush", "noob"),
+        (" --theirs", "rush archers", "pro"),
+        (" --merge", "rush / rush archers", "noob, pro"),
+    ],
+)
+def test_import_avec_une_strategie(tmp_path, option, note, trait):
+    app = _paul_en_conflit(tmp_path)
+    app.importer(str(tmp_path / "paul.json") + option)
+    assert (app.note_actuelle("Bob"), app.trait_actuel("Bob")) == (note, trait)
+
+
+def test_toujours_la_mienne_meme_quand_le_pote_a_remplace_ma_note(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.memoriser("Bob", "rush")
+    app.exporter(str(tmp_path / "antho.json"))
+    paul = _pote(tmp_path)
+    paul.importer(str(tmp_path / "antho.json"))
+    paul.memoriser("Bob", "rush archers")  # avance rapide : pas un conflit
+    paul.exporter(str(tmp_path / "paul.json"))
+    app.importer(str(tmp_path / "paul.json") + " --mine")
+    assert app.note_actuelle("Bob") == "rush"
+
+
+def test_lire_import_options(tmp_path):
+    app = nouvelle_app(tmp_path)
+    assert app.lire_import("paul.json") == ("paul.json", "recente", "")
+    assert app.lire_import('C:\\a b\\paul.json" --keep-deleted') == ("C:\\a b\\paul.json", "sans_suppression", "")
+    assert app.lire_import("paul.json --theirs")[1] == "sienne"
+    assert "Option inconnue : --vite" in app.lire_import("paul.json --vite")[2]
+    assert "--mine" in app.lire_import("paul.json --vite")[2]
+    assert "Une seule stratégie" in app.lire_import("paul.json --mine --theirs")[2]
+    assert "Option inconnue" in app.importer(str(tmp_path / "x.json") + " --vite")
+
+
+def test_import_sans_difference_ne_demande_rien(tmp_path):
     app = nouvelle_app(tmp_path)
     paul = _pote(tmp_path)
     paul.memoriser("Bob", "rush")
     paul.exporter(str(tmp_path / "paul.json"))
 
-    def decider(conflits, auteur):
-        raise AssertionError("pas de question sans conflit")
+    def choisir(differences, auteur):
+        raise AssertionError("pas de question sans différence")
 
-    app.importer(str(tmp_path / "paul.json"), decider)
+    app.importer(str(tmp_path / "paul.json") + " --ask", choisir)
     assert app.note_actuelle("Bob") == "rush"
 
 
-def test_resume_et_description_d_un_conflit(tmp_path):
+def test_apercu_et_description_d_une_difference(tmp_path):
     app = nouvelle_app(tmp_path)
     app.memoriser("Bob", "rush")
     app.noter("Bob", "noob")
@@ -695,11 +740,15 @@ def test_resume_et_description_d_un_conflit(tmp_path):
     paul.memoriser("Bob", "autre", maintenant="2026-11-20T20:00")
     paul.memoriser("Bob", "", maintenant="2026-11-21T20:00")  # Paul l'a supprimée
     paul.noter("Bob", "pro", maintenant="2026-11-21T20:00")
-    conflits = app.carnet.conflits(paul)
-    assert app.resume_conflits(conflits, "Paul") == "2 conflit(s) avec Paul (1 note(s), 1 trait(s)), dont 1 suppression(s)."
-    note = next(c for c in conflits if c.champ == "note")
-    assert sans_couleur(app.decrire_conflit(note)).splitlines() == [
-        "Bob — note",
+    paul.memoriser("Zed", "x", maintenant="2026-11-21T20:00")
+    assert app.apercu_import(paul) == (
+        "Import de Paul : 1 joueur(s) à ajouter, 4 version(s) nouvelle(s), "
+        "2 trait(s) ou note(s) différent(s) des tiens, dont 2 conflit(s) et 1 suppression(s)."
+    )
+    assert app.carnet.trouver("Zed") is None  # l'aperçu ne modifie rien
+    note = next(d for d in app.carnet.differences(paul) if d.champ == "note")
+    assert sans_couleur(app.decrire_difference(note)).splitlines() == [
+        "Bob — note (conflit)",
         "  1. Antho (15/11/2026) : rush",
         "  2. Paul  (21/11/2026) : (supprimée)",
     ]

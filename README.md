@@ -96,7 +96,7 @@ superselection "[IMP] Pizza"
 | `delete <nom>`     | supprimer un joueur du carnet (confirmation)            | `delete Pizza`      |
 | `reset`            | vider le carnet (confirmation)                          | `reset`             |
 | `export [fichier]` | exporter le carnet (sur le Bureau par défaut)           | `export antho.json` |
-| `import <fichier>` | fusionner un carnet exporté (choix en cas de conflit)   | `import kevin.json` |
+| `import <fichier>` | fusionner un carnet exporté (confirmation, stratégie)   | `import kevin.json --mine` |
 | `refresh`          | recharger le classement                                 | `refresh`           |
 | `update [--force]` | installer la dernière version (`--force` : sans vérifier) | `update --force`  |
 | `version`          | afficher la version installée                           | `version`           |
@@ -153,20 +153,34 @@ Un joueur n'a qu'**un trait et une note**, communs : le destinataire peut modifi
 datée. À l'import, les versions de l'autre rejoignent l'historique et **la plus récente
 l'emporte**. Rien n'est perdu : `show` et `edit` montrent les versions remplacées.
 
-S'il y a un **conflit** (chacun a modifié la même note de son côté), l'import demande :
+Avant d'importer, l'outil affiche ce que le fichier apporte et demande confirmation, avec la
+**stratégie** en cours entre parenthèses :
 
 ```text
-2 conflit(s) avec Paul (1 note(s), 1 trait(s)), dont 1 suppression(s).
-  Garder ? (Entrée = la plus récente gagne, s = la plus récente sans suppression, u = choisir un par un) >
+adversaire > import paul.json
+Import de Paul : 1 joueur(s) à ajouter, 5 version(s) nouvelle(s), 2 trait(s) ou note(s) différent(s) des tiens, dont 1 conflit(s) et 1 suppression(s).
+  Importer (la plus récente gagne) ? (Entrée = oui, c = changer, n = annuler) >
 ```
 
-- **Entrée** : la plus récente gagne, même si c'est une suppression.
-- **s** : pareil, mais une note ou un trait supprimé par l'autre est gardé.
-- **u** : pour chaque conflit, `1` = la mienne, `2` = la sienne, `f` = fusionner les deux
-  (mots-clés réunis, ou les deux notes « a / b »), Entrée = la plus récente.
+`c` propose les stratégies, `n` annule sans rien modifier. On peut aussi donner la stratégie
+de départ dans la commande : `import paul.json --mine`.
+
+| Option           | Stratégie                                                          |
+|------------------|--------------------------------------------------------------------|
+| `--latest`       | la plus récente gagne (par défaut)                                 |
+| `--keep-deleted` | la plus récente, mais une suppression venue de l'autre est ignorée |
+| `--mine`         | toujours la mienne                                                 |
+| `--theirs`       | toujours celle de l'autre                                          |
+| `--merge`        | fusionner les deux (mots-clés réunis, ou notes « a / b »)          |
+| `--ask`          | choisir un par un : `1` = la mienne, `2` = la sienne, `f` = fusionner, Entrée = la plus récente |
+
+La stratégie s'applique à chaque trait ou note différent du tien. Un **conflit**, c'est quand
+chacun a modifié de son côté. Si l'autre a seulement remplacé ta version, c'est une avance
+rapide : « la plus récente » lui donne raison, mais `--mine` garde quand même la tienne.
 
 Un choix différent de la plus récente est enregistré comme nouvelle version : à son prochain
-import, l'autre la reçoit sans nouvelle question. Ctrl+C pendant les questions annule l'import.
+import, l'autre la reçoit. Sans différence, la confirmation est simplement
+« Importer ? (Entrée = oui, n = annuler) ». Ctrl+C pendant les questions annule l'import.
 
 Attention : notes et historique sont lisibles par toute personne qui reçoit le fichier.
 « Croisé N fois » ne compte que mes rencontres ; `show` affiche aussi celles des autres

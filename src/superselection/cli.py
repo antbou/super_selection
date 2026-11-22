@@ -14,7 +14,7 @@ from typing import Callable
 
 from platformdirs import user_cache_dir, user_data_dir, user_desktop_dir
 
-from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
+from .app import AIDE, COMMANDES, NOMS_COMMANDES, STRATEGIES, App, analyser, nom_strategie
 from .carnet import FICHIER, Carnet, CarnetInvalide, migrer_ancien_fichier
 from .classement import MODES, charger_classement, charger_saison, fetch_http
 from .couleurs import colorer_aide, peindre, sans_couleur
@@ -125,42 +125,71 @@ def _editer(app: App, nom: str, demander: Demander) -> None:
 
 # réponse au choix « un par un » -> choix du carnet (Entrée = la plus récente)
 CHOIX_UN_PAR_UN = {"": "recente", "1": "mienne", "2": "sienne", "f": "fusion"}
+OUI = ("", "o", "oui", "y", "yes")
 
 
-def _decideur(app: App, demander: Demander) -> Callable[[list, str], list]:
-    """Les questions d'import, posées seulement s'il y a des conflits (ADR 0022) : la plus récente
-    (Entrée), sans suppression (s) ou un par un (u, 1 = la mienne, 2 = la sienne, f = les deux)."""
+def _importer(app: App, argument: str, demander: Demander) -> None:
+    """Aperçu, puis confirmation avec la stratégie actuelle (Entrée = importer, c = changer,
+    n = annuler). L'option (`--mine`…) donne la stratégie de départ ; sans terminal, Entrée."""
+    chemin, strategie, erreur = app.lire_import(argument)
+    if erreur:
+        afficher(c(erreur, "erreur"))
+        return
+    autre, erreur = app.ouvrir_import(chemin)
+    if autre is None:
+        afficher(erreur)
+        return
+    differences = bool(app.carnet.differences(autre))
+    afficher(app.apercu_import(autre))
+    while True:
+        if differences:
+            question = (
+                f"  Importer ({nom_strategie(strategie, autre.auteur)}) ? "
+                + c("(Entrée = oui, c = changer, n = annuler)", "info") + " > "
+            )
+        else:
+            question = "  Importer ? " + c("(Entrée = oui, n = annuler)", "info") + " > "
+        reponse = demander(question, "", genre="texte").strip().casefold()
+        if reponse in OUI:
+            break
+        if reponse in ("n", "non", "no"):
+            afficher(c("Import annulé : rien n'a été modifié.", "info"))
+            return
+        if reponse == "c" and differences:
+            strategie = _choisir_strategie(strategie, autre.auteur, demander)
+        else:
+            afficher("  " + c("Répondre Entrée, c ou n." if differences else "Répondre Entrée ou n.", "erreur"))
+    afficher(app.appliquer_import(autre, strategie, lambda d, auteur: _un_par_un(app, d, auteur, demander)))
 
-    def decider(conflits: list, auteur: str) -> list:
-        afficher(app.resume_conflits(conflits, auteur))
-        question = (
-            "  Garder ? "
-            + c("(Entrée = la plus récente gagne, s = la plus récente sans suppression, u = choisir un par un)", "info")
-            + " > "
-        )
-        while True:
-            reponse = demander(question, "", genre="texte").strip().casefold()
-            if reponse in ("", "s", "u"):
-                break
-            afficher("  " + c("Répondre Entrée, s ou u.", "erreur"))
-        if reponse == "":
-            return ["recente"] * len(conflits)
-        if reponse == "s":
-            return ["sans_suppression"] * len(conflits)
-        choix = []
-        question = (
-            "  Garder ? "
-            + c(f"(1 = la mienne, 2 = celle de {auteur}, f = fusionner les deux, Entrée = la plus récente)", "info")
-            + " > "
-        )
-        for conflit in conflits:
-            afficher(app.decrire_conflit(conflit))
-            while (reponse := demander(question, "", genre="texte").strip().casefold()) not in CHOIX_UN_PAR_UN:
-                afficher("  " + c("Répondre 1, 2, f ou Entrée.", "erreur"))
-            choix.append(CHOIX_UN_PAR_UN[reponse])
-        return choix
 
-    return decider
+def _choisir_strategie(actuelle: str, auteur: str, demander: Demander) -> str:
+    strategies = list(STRATEGIES.values())
+    for numero, strategie in enumerate(strategies, start=1):
+        marque = c("  (actuelle)", "info") if strategie == actuelle else ""
+        afficher(f"    {numero}. {nom_strategie(strategie, auteur)}{marque}")
+    question = "  Stratégie ? " + c(f"(1 à {len(strategies)}, Entrée = garder)", "info") + " > "
+    while True:
+        reponse = demander(question, "", genre="texte").strip()
+        if not reponse:
+            return actuelle
+        if reponse.isdigit() and 1 <= int(reponse) <= len(strategies):
+            return strategies[int(reponse) - 1]
+        afficher("  " + c(f"Répondre un nombre de 1 à {len(strategies)}, ou Entrée.", "erreur"))
+
+
+def _un_par_un(app: App, differences: list, auteur: str, demander: Demander) -> list:
+    question = (
+        "  Garder ? "
+        + c(f"(1 = la mienne, 2 = celle de {auteur}, f = fusionner les deux, Entrée = la plus récente)", "info")
+        + " > "
+    )
+    choix = []
+    for difference in differences:
+        afficher(app.decrire_difference(difference))
+        while (reponse := demander(question, "", genre="texte").strip().casefold()) not in CHOIX_UN_PAR_UN:
+            afficher("  " + c("Répondre 1, 2, f ou Entrée.", "erreur"))
+        choix.append(CHOIX_UN_PAR_UN[reponse])
+    return choix
 
 
 def _en_transaction(app: App, action: Callable[[], None]) -> None:
@@ -224,7 +253,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
     elif commande == "export":
         afficher(app.exporter(argument))
     elif commande == "import":
-        _en_transaction(app, lambda: afficher(app.importer(argument, _decideur(app, demander))))
+        _en_transaction(app, lambda: _importer(app, argument, demander))
     elif commande == "refresh":
         nouveau, message = charger_classement(
             dossiers()[1] / "classement.json", fetch_http, maintenant()

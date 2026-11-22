@@ -516,3 +516,30 @@ def test_pas_de_conflit_si_le_pote_a_remplace_ma_version():
     paul.fusionner(moi)
     paul.memoriser("Bob", "rush à 3 min", maintenant="2026-11-08T20:00")
     assert moi.conflits(paul) == []
+
+
+def test_differences_comprend_les_avances_rapides():
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Bob", "rush", maintenant="2026-11-07T20:00")
+    moi.noter("Bob", "noob", maintenant="2026-11-07T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.fusionner(moi)
+    paul.memoriser("Bob", "rush à 3 min", maintenant="2026-11-08T20:00")  # il a vu ma note
+    paul.noter("Bob", "pro", maintenant="2026-11-08T20:00")
+    paul.trouver("Bob").historique_trait.pop(0)  # il n'a jamais vu mon trait : conflit
+    differences = {d.champ: d for d in moi.differences(paul)}
+    assert (differences["note"].conflit, differences["trait"].conflit) == (False, True)
+    assert [d.champ for d in moi.conflits(paul)] == ["trait"]
+
+
+def test_sans_suppression_sur_une_avance_rapide():
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Bob", "rush", maintenant="2026-11-07T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.fusionner(moi)
+    paul.memoriser("Bob", "", maintenant="2026-11-08T20:00")  # il l'a supprimée
+    [difference] = moi.differences(paul)
+    moi.fusionner(paul)
+    assert moi.trouver("Bob").note == ""
+    assert moi.resoudre(difference, "sans_suppression", maintenant="2026-11-22T10:00")
+    assert moi.trouver("Bob").note == "rush"

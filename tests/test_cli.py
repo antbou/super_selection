@@ -567,30 +567,75 @@ def _conflit_avec_paul(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "reponses, note, trait",
+    "ligne, reponses, note, trait",
     [
-        ([""], "rush archers", "pro"),  # Entrée : la plus récente
-        (["u", "f", "1"], "rush", "noob, pro"),  # trait d'abord, puis note
-        (["u", "", "2"], "rush archers", "pro"),
-        (["x", "u", "3", "2", "1"], "rush", "pro"),  # réponses invalides redemandées
+        ("", [""], "rush archers", "pro"),  # Entrée : la plus récente
+        (" --mine", [""], "rush", "noob"),  # stratégie de départ donnée par l'option
+        ("", ["c", "3", ""], "rush", "noob"),  # changer : toujours la mienne
+        ("", ["c", "6", "", "f", "1"], "rush", "noob, pro"),  # un par un : trait puis note
+        ("", ["x", "c", "9", "", ""], "rush archers", "pro"),  # réponses invalides redemandées
     ],
 )
-def test_import_avec_conflits_pose_les_questions(tmp_path, capsys, reponses, note, trait):
+def test_import_confirme_et_laisse_changer_la_strategie(tmp_path, capsys, ligne, reponses, note, trait):
     app = _conflit_avec_paul(tmp_path)
     suite = iter(reponses)
-    cli.executer(app, f"import {tmp_path / 'paul.json'}", lambda q, d, genre="texte": next(suite))
+    questions = []
+
+    def demander(question, defaut, genre="texte"):
+        questions.append(question)
+        return next(suite)
+
+    cli.executer(app, f"import {tmp_path / 'paul.json'}{ligne}", demander)
     sortie = capsys.readouterr().out
-    assert "2 conflit(s) avec Paul" in sortie
+    assert "Import de Paul : 0 joueur(s) à ajouter, 2 version(s) nouvelle(s)" in sortie
+    depart = "toujours la mienne" if ligne else "la plus récente gagne"
+    assert questions[0].startswith(f"  Importer ({depart}) ? ")
     assert (app.note_actuelle("Bob"), app.trait_actuel("Bob")) == (note, trait)
     assert next(suite, None) is None  # toutes les réponses ont servi
+
+
+def test_import_annule_par_n(tmp_path, capsys):
+    app = _conflit_avec_paul(tmp_path)
+    avant = app.chemin_carnet.read_text(encoding="utf-8")
+    cli.executer(app, f"import {tmp_path / 'paul.json'}", lambda q, d, genre="texte": "n")
+    assert "Import annulé" in capsys.readouterr().out
+    assert app.chemin_carnet.read_text(encoding="utf-8") == avant
+
+
+def test_import_sans_difference_demande_seulement_confirmation(tmp_path, capsys):
+    from superselection.carnet import Carnet
+
+    app = nouvelle_app(tmp_path)
+    paul = Carnet(auteur="Paul")
+    paul.memoriser("Bob", "rush", maintenant="2026-11-21T20:00")
+    paul.sauver(tmp_path / "paul.json")
+    questions = []
+
+    def demander(question, defaut, genre="texte"):
+        questions.append(question)
+        return ""
+
+    cli.executer(app, f"import {tmp_path / 'paul.json'}", demander)
+    assert len(questions) == 1 and "Importer ?" in questions[0] and "changer" not in questions[0]
+    assert app.note_actuelle("Bob") == "rush"
+
+
+def test_import_option_inconnue(tmp_path, capsys):
+    app = _conflit_avec_paul(tmp_path)
+    cli.executer(app, f"import {tmp_path / 'paul.json'} --vite", lambda q, d, genre="texte": pytest.fail("pas de question"))
+    assert "Option inconnue : --vite" in capsys.readouterr().out
 
 
 def test_import_ctrl_c_pendant_les_questions_annule_tout(tmp_path, capsys):
     app = _conflit_avec_paul(tmp_path)
     avant = app.chemin_carnet.read_text(encoding="utf-8")
+    reponses = iter(["c", "6", "1"])
 
     def demander(question, defaut, genre="texte"):
-        raise KeyboardInterrupt
+        try:
+            return next(reponses)
+        except StopIteration:
+            raise KeyboardInterrupt
 
     cli.executer(app, f"import {tmp_path / 'paul.json'}", demander)
     assert "Annulé" in capsys.readouterr().out

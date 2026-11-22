@@ -80,13 +80,17 @@ class Joueur:
 
 
 @dataclass
-class Conflit:
-    """Chacun a modifié de son côté : ma version actuelle et la sienne, nouvelle pour moi, diffèrent."""
+class Difference:
+    """À l'import : sa version actuelle, nouvelle pour moi, diffère de la mienne.
+
+    `conflit` : chacun a modifié de son côté (il n'a pas vu ma version). Sinon c'est une avance
+    rapide : il a remplacé ma version, la sienne gagne sans question avec « la plus récente »."""
 
     nom: str
     champ: str  # "trait" ou "note"
     mienne: Revision
     sienne: Revision
+    conflit: bool = True
 
 
 @dataclass
@@ -185,11 +189,15 @@ class Carnet:
     # --- import -----------------------------------------------------------
 
     def conflits(self, autre: "Carnet") -> list:
-        """Les traits et notes que chacun a modifiés de son côté (à calculer avant `fusionner`).
+        """Les différences que chacun a modifiées de son côté (voir `differences`)."""
+        return [d for d in self.differences(autre) if d.conflit]
 
-        Comme une avance rapide dans Git, pas de conflit si l'un a déjà vu la version actuelle
-        de l'autre : sa version est dans mon historique (je l'ai remplacée) ou la mienne est dans
-        le sien (il l'a remplacée). Pas de conflit non plus à valeur égale.
+    def differences(self, autre: "Carnet") -> list:
+        """Les traits et notes où l'import apporterait une autre valeur que la mienne (avant `fusionner`).
+
+        Rien si sa version est déjà dans mon historique (je l'ai remplacée) ou à valeur égale.
+        Comme dans Git, c'est un conflit seulement si la mienne n'est pas non plus dans son
+        historique ; sinon c'est une avance rapide (il a remplacé ma version).
         """
         trouves = []
         for sien in autre.joueurs:
@@ -200,10 +208,10 @@ class Carnet:
                 sienne, mienne = sien.version(champ), mien.version(champ)
                 if sienne is None or mienne is None:
                     continue
-                if sienne in mien.historique(champ) or mienne in sien.historique(champ):
+                if sienne in mien.historique(champ) or sienne.texte == mienne.texte:
                     continue
-                if sienne.texte != mienne.texte:
-                    trouves.append(Conflit(mien.nom, champ, mienne, sienne))
+                conflit = mienne not in sien.historique(champ)
+                trouves.append(Difference(mien.nom, champ, mienne, sienne, conflit))
         return trouves
 
     def fusionner(self, autre: "Carnet") -> Bilan:
@@ -249,8 +257,8 @@ class Carnet:
             if actuelles is None or (rencontres.derniere or "") > (actuelles.derniere or ""):
                 mien.autres_rencontres[cle] = Rencontres(rencontres.nombre, rencontres.derniere)
 
-    def resoudre(self, conflit: Conflit, choix: str, maintenant: str) -> bool:
-        """Applique un choix sur un conflit, après `fusionner`. Renvoie True si une version est ajoutée.
+    def resoudre(self, conflit: Difference, choix: str, maintenant: str) -> bool:
+        """Applique un choix sur une différence, après `fusionner`. Renvoie True si une version est ajoutée.
 
         - « recente » : la plus récente gagne (rien à faire, c'est déjà le cas) ;
         - « sans_suppression » : si la plus récente est sa suppression, ma version revient ;

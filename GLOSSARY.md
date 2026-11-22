@@ -17,7 +17,8 @@ Vocabulaire du domaine, utilisé tel quel dans le code (`src/superselection/`).
 - **Note** (`Joueur.note`, ancienne « note perso », proposée après le trait à chaque rencontre) : texte libre sur un joueur. Une seule par joueur, commune comme le trait : chacun peut modifier celle d'un autre.
 - **Version** (`Revision`) : une valeur du trait ou de la note, avec son auteur (`by`) et sa date (`at`). Effacer ajoute une version vide. La **version actuelle** est la plus récente.
 - **Historique** (`Joueur.historique_trait`, `Joueur.historique_note`) : toutes les versions d'un champ, de la plus ancienne à la plus récente. `show` et `edit` affichent les versions remplacées. Rien n'en est jamais retiré, sauf en supprimant le joueur.
-- **Conflit** (`Conflit`) : à l'import, chacun a modifié le même champ de son côté (aucun n'a vu la version de l'autre). Par défaut, la plus récente gagne. Sinon : « sans suppression », ou un choix un par un (la mienne, la sienne, fusionner). Un choix devient une nouvelle version.
+- **Différence** (`Difference`) : à l'import, la version actuelle de l'autre est nouvelle pour moi et sa valeur diffère de la mienne. C'est un **conflit** (`Difference.conflit`) quand chacun a modifié de son côté. Sinon, c'est une avance rapide : il a remplacé ma version.
+- **Stratégie d'import** (`STRATEGIES`, options `--latest`, `--keep-deleted`, `--mine`, `--theirs`, `--merge`, `--ask`) : comment chaque différence est tranchée. Elle est affichée entre parenthèses à la confirmation et modifiable avec `c`. Par défaut, la plus récente gagne. Un choix différent de la plus récente devient une nouvelle version.
 - **Mot-clé de trait** (`Tag`, `traits.py`) : l'un des cinq mots permis (`aggressive`, `defence`,
   `noob`, `tryhard`, `pro`), affiché avec son emoji. Le texte est stocké sans emoji ; l'emoji est ajouté à l'affichage.
 - **Classement** (`Classement`) : le top 100 officiel d'une **saison**, en 1v1 et en 2v2, lu sur
