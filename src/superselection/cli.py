@@ -15,7 +15,7 @@ from typing import Callable
 from platformdirs import user_cache_dir, user_data_dir, user_desktop_dir
 
 from .app import AIDE, COMMANDES, NOMS_COMMANDES, App, analyser
-from .carnet import Carnet, CarnetInvalide
+from .carnet import FICHIER, Carnet, CarnetInvalide, migrer_ancien_fichier
 from .classement import MODES, charger_classement, charger_saison, fetch_http
 from .couleurs import colorer_aide, peindre, sans_couleur
 from .traits import tags_commencant_par, valider
@@ -72,8 +72,8 @@ def _noter(app: App, nom: str, reponse: str) -> None:
 
 
 def _questions(app: App, nom: str, demander: Demander) -> None:
-    """Demande le trait puis la note perso. Ctrl+C / Ctrl+D remontent : l'appelant annule la transaction."""
-    actuel = app.mon_trait(nom)
+    """Demande le trait puis la note. Ctrl+C / Ctrl+D remontent : l'appelant annule la transaction."""
+    actuel = app.trait_actuel(nom)
     question = (
         "  Nouveau trait ? " + c("(Tab = mots-clés, Entrée = garder, - = effacer)", "info") + " > "
         if actuel
@@ -85,11 +85,11 @@ def _questions(app: App, nom: str, demander: Demander) -> None:
         afficher("  " + c("Trait effacé.", "ok"))
     elif reponse and reponse != "-" and reponse != actuel:
         _noter(app, nom, reponse)
-    memo = app.mon_memo(nom)
+    memo = app.note_actuelle(nom)
     question = (
-        "  Nouvelle note ? " + c("(texte privé, Entrée = garder, - = effacer)", "info") + " > "
+        "  Nouvelle note ? " + c("(texte partagé, Entrée = garder, - = effacer)", "info") + " > "
         if memo
-        else "  Une note ? " + c("(texte libre privé, Entrée = passer)", "info") + " > "
+        else "  Une note ? " + c("(texte libre partagé, Entrée = passer)", "info") + " > "
     )
     reponse = demander(question, "", genre="texte").strip()
     if reponse == "-" and memo:
@@ -109,18 +109,58 @@ def _editer(app: App, nom: str, demander: Demander) -> None:
         afficher("  " + app.renommer(nom, nouveau))
         if (joueur := app.carnet.trouver(nouveau)) is not None and app.carnet.trouver(nom) is None:
             nom = joueur.nom
-    trait = app.mon_trait(nom)
+    trait = app.trait_actuel(nom)
     reponse = demander("  Trait > ", trait, genre="trait").strip()
     if reponse == "-":  # comme à la rencontre : « - » efface
         reponse = ""
     if reponse != trait:
         _noter(app, nom, reponse)
-    memo = app.mon_memo(nom)
+    memo = app.note_actuelle(nom)
     reponse = demander("  Note  > ", memo, genre="texte").strip()
     if reponse == "-":
         reponse = ""
     if reponse != memo:
         afficher("  " + app.memoriser(nom, reponse))
+
+
+# réponse au choix « un par un » -> choix du carnet (Entrée = la plus récente)
+CHOIX_UN_PAR_UN = {"": "recente", "1": "mienne", "2": "sienne", "f": "fusion"}
+
+
+def _decideur(app: App, demander: Demander) -> Callable[[list, str], list]:
+    """Les questions d'import, posées seulement s'il y a des conflits (ADR 0022) : la plus récente
+    (Entrée), sans suppression (s) ou un par un (u, 1 = la mienne, 2 = la sienne, f = les deux)."""
+
+    def decider(conflits: list, auteur: str) -> list:
+        afficher(app.resume_conflits(conflits, auteur))
+        question = (
+            "  Garder ? "
+            + c("(Entrée = la plus récente gagne, s = la plus récente sans suppression, u = choisir un par un)", "info")
+            + " > "
+        )
+        while True:
+            reponse = demander(question, "", genre="texte").strip().casefold()
+            if reponse in ("", "s", "u"):
+                break
+            afficher("  " + c("Répondre Entrée, s ou u.", "erreur"))
+        if reponse == "":
+            return ["recente"] * len(conflits)
+        if reponse == "s":
+            return ["sans_suppression"] * len(conflits)
+        choix = []
+        question = (
+            "  Garder ? "
+            + c(f"(1 = la mienne, 2 = celle de {auteur}, f = fusionner les deux, Entrée = la plus récente)", "info")
+            + " > "
+        )
+        for conflit in conflits:
+            afficher(app.decrire_conflit(conflit))
+            while (reponse := demander(question, "", genre="texte").strip().casefold()) not in CHOIX_UN_PAR_UN:
+                afficher("  " + c("Répondre 1, 2, f ou Entrée.", "erreur"))
+            choix.append(CHOIX_UN_PAR_UN[reponse])
+        return choix
+
+    return decider
 
 
 def _en_transaction(app: App, action: Callable[[], None]) -> None:
@@ -152,7 +192,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
             afficher(app.supprimer(argument))
         else:
             question = (
-                f"  Supprimer {joueur.nom} ({joueur.rencontres} rencontre(s), {len(joueur.traits)} trait(s)) ? "
+                f"  Supprimer {joueur.nom} ({joueur.rencontres} rencontre(s), trait, note et historique) ? "
                 + c("(o = oui, Entrée = non)", "info") + " > "
             )
             try:
@@ -184,7 +224,7 @@ def executer(app: App, ligne: str, demander: Demander) -> bool:
     elif commande == "export":
         afficher(app.exporter(argument))
     elif commande == "import":
-        afficher(app.importer(argument))
+        _en_transaction(app, lambda: afficher(app.importer(argument, _decideur(app, demander))))
     elif commande == "refresh":
         nouveau, message = charger_classement(
             dossiers()[1] / "classement.json", fetch_http, maintenant()
@@ -432,7 +472,7 @@ def main(argv: list | None = None) -> None:
 
 
 def _echec_carnet(erreur: Exception) -> None:
-    afficher(c(f"Carnet illisible : {dossiers()[0] / 'carnet.json'}", "erreur"))
+    afficher(c(f"Carnet illisible : {dossiers()[0] / FICHIER}", "erreur"))
     afficher(f"  {erreur}")
     afficher("Corriger ce fichier ou le renommer pour repartir d'un carnet vide.")
     _attendre_fermeture()
@@ -456,7 +496,13 @@ def _echec_inattendu(erreur: Exception) -> None:
 
 
 def _charger_carnet(chemin_carnet: Path, interactif: bool) -> Carnet | None:
-    """Le carnet existant, un carnet neuf après le premier lancement, ou None si on doit sortir."""
+    """Le carnet existant, un carnet neuf après le premier lancement, ou None si on doit sortir.
+
+    Un ancien `carnet.json` (format 1) est d'abord converti en `notebook.json` (ADR 0023)."""
+    sauvegarde = migrer_ancien_fichier(chemin_carnet.parent)
+    if sauvegarde is not None:
+        afficher(c(f"Carnet converti au nouveau format : {chemin_carnet}", "ok"))
+        afficher(c(f"Ancien fichier gardé : {sauvegarde}", "info"))
     if chemin_carnet.exists():
         try:
             return Carnet.charger(chemin_carnet)
@@ -472,7 +518,7 @@ def _charger_carnet(chemin_carnet: Path, interactif: bool) -> Carnet | None:
     while not pseudo:
         try:
             pseudo = sans_controle(
-                input("Pseudo (signe les traits à l'export) : ")
+                input("Pseudo (signe tes traits et notes) : ")
             ).strip()
         except (KeyboardInterrupt, EOFError):
             afficher("")
@@ -494,7 +540,7 @@ def _principal(argv: list) -> None:
     _COULEUR = couleur_possible()
 
     donnees, cache = dossiers()
-    chemin_carnet = donnees / "carnet.json"
+    chemin_carnet = donnees / FICHIER
     interactif = sys.stdin.isatty()
 
     carnet = _charger_carnet(chemin_carnet, interactif)

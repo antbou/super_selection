@@ -5,7 +5,8 @@ Carnet d'adversaires pour **War Selection**. Pour un nom de joueur saisi, l'outi
 - son rang dans le **top 100** (1v1 et 2v2, saison en cours, d'après
   [ws-stats.pl](https://ws-stats.pl/leaderboard)) ;
 - le nombre de rencontres précédentes et la date de la dernière ;
-- les **traits** et notes enregistrés (par le propriétaire du carnet et par les carnets importés).
+- son **trait** et sa **note**, communs à tous ceux qui s'échangent le carnet : chacun peut les
+  modifier, la version la plus récente l'emporte et `show` garde l'historique.
 
 Un trait se note ensuite en une ligne.
 
@@ -62,14 +63,15 @@ adversaire > Bob
 Bob
   1v1 : hors top 100   ·   2v2 : hors top 100
   Croisé 3 fois — dernière fois le 12/11/2026
-  Trait (Antho) : 🛡️ defence, 😤 tryhard
-  Trait (Kevin) : 🐣 noob, spam cavalerie
+  Note : rush archers à 3 min  (Kevin, 11/11/2026)
+  Trait : 🛡️ defence, 😤 tryhard  (Antho, 12/11/2026)
   Nouveau trait ? (Tab = mots-clés, Entrée = garder, - = effacer) >
 ```
 
 Chaque nom saisi compte comme une rencontre, sauf s'il a déjà été saisi depuis moins de
 30 minutes (relecture d'une note en pleine partie). `show Bob` affiche la fiche sans compter
-de rencontre. `edit Bob` modifie nom, trait et note sans recompter.
+de rencontre, avec l'historique des versions du trait et de la note (les 10 dernières).
+`edit Bob` affiche le même historique, puis modifie nom, trait et note sans recompter.
 
 Un nom absent du top 100 et du carnet est signalé « Nouveau joueur », avec les noms proches
 s'il y en a. Une faute de frappe se corrige avec `delete`, puis en saisissant le bon nom.
@@ -88,13 +90,13 @@ superselection "[IMP] Pizza"
 |--------------------|---------------------------------------------------------|---------------------|
 | `<nom>`            | croiser un joueur, puis noter son trait                 | `[IMP] Pizza`       |
 | `top [1v1\|2v2]`   | afficher le top 100, recherche en tapant                | `top 2v2`           |
-| `show <nom>`       | fiche + saisons passées dans le top 100, sans compter   | `show Unloukee`     |
+| `show <nom>`       | fiche + saisons passées + historique, sans compter      | `show Unloukee`     |
 | `edit <nom>`       | modifier nom, trait, note (« - » efface), sans compter  | `edit Pizza`        |
 | `list`             | lister les joueurs, concis (A → Z, non latins à la fin) | `list`              |
 | `delete <nom>`     | supprimer un joueur du carnet (confirmation)            | `delete Pizza`      |
 | `reset`            | vider le carnet (confirmation)                          | `reset`             |
 | `export [fichier]` | exporter le carnet (sur le Bureau par défaut)           | `export antho.json` |
-| `import <fichier>` | fusionner un carnet exporté                             | `import kevin.json` |
+| `import <fichier>` | fusionner un carnet exporté (choix en cas de conflit)   | `import kevin.json` |
 | `refresh`          | recharger le classement                                 | `refresh`           |
 | `update [--force]` | installer la dernière version (`--force` : sans vérifier) | `update --force`  |
 | `version`          | afficher la version installée                           | `version`           |
@@ -120,7 +122,7 @@ proposer lors de la saisie) :
 Plusieurs mots-clés sont possibles : `aggressive, tryhard` s'affiche
 `🔥 aggressive, 😤 tryhard`. Les variantes (`agressif`, `defense`, `défense`, `def`, `nul`…)
 sont acceptées et enregistrées sous le mot-clé correspondant. Tout autre mot est refusé : le
-détail (unités, stratégie) va dans la note perso. Les traits déjà enregistrés en texte libre
+détail (unités, stratégie) va dans la note. Les traits déjà enregistrés en texte libre
 restent affichés tels quels.
 
 ### Noms en caractères non saisissables (chinois, russe…)
@@ -146,24 +148,43 @@ Paramètres → Heure et langue → Langue → Ajouter une langue (le module de 
 2. Importer, chez le destinataire : `import antho.json` (Windows : saisir `import `, puis
    glisser le fichier dans la fenêtre pour coller son chemin).
 
-La fusion ajoute les joueurs inconnus, les traits et les notes perso de l'exportateur,
-**signés de son pseudo**. Les traits et notes du destinataire ne sont jamais modifiés.
-Attention : les notes perso sont lisibles par toute personne qui reçoit le fichier. Le compteur
-« croisé N fois » ne compte que les rencontres du propriétaire du carnet. Un import ultérieur
-d'une version plus récente met à jour ses traits et ses notes ; une version plus ancienne est
-ignorée. `list` reste concise (sans les auteurs) ; `show` détaille chaque trait et chaque note
-avec son auteur.
+Un joueur n'a qu'**un trait et une note**, communs : le destinataire peut modifier la note
+écrite par l'exportateur, et inversement. Chaque modification est une **version** signée et
+datée. À l'import, les versions de l'autre rejoignent l'historique et **la plus récente
+l'emporte**. Rien n'est perdu : `show` et `edit` montrent les versions remplacées.
+
+S'il y a un **conflit** (chacun a modifié la même note de son côté), l'import demande :
+
+```text
+2 conflit(s) avec Paul (1 note(s), 1 trait(s)), dont 1 suppression(s).
+  Garder ? (Entrée = la plus récente gagne, s = la plus récente sans suppression, u = choisir un par un) >
+```
+
+- **Entrée** : la plus récente gagne, même si c'est une suppression.
+- **s** : pareil, mais une note ou un trait supprimé par l'autre est gardé.
+- **u** : pour chaque conflit, `1` = la mienne, `2` = la sienne, `f` = fusionner les deux
+  (mots-clés réunis, ou les deux notes « a / b »), Entrée = la plus récente.
+
+Un choix différent de la plus récente est enregistré comme nouvelle version : à son prochain
+import, l'autre la reçoit sans nouvelle question. Ctrl+C pendant les questions annule l'import.
+
+Attention : notes et historique sont lisibles par toute personne qui reçoit le fichier.
+« Croisé N fois » ne compte que mes rencontres ; `show` affiche aussi celles des autres
+(« Rencontres des autres : Paul 1 fois »). `list` reste concise : version actuelle, sans
+auteurs. Un carnet exporté par une ancienne version (avant 0.15.0) s'importe toujours ; à
+l'inverse, une ancienne version ne lit pas le nouveau format : chacun doit faire `update`.
 
 ## Données
 
-| Système | Carnet (`carnet.json`)                          |
+| Système | Carnet (`notebook.json`)                        |
 |---------|-------------------------------------------------|
 | Windows | `%APPDATA%\superselection\`                     |
 | Linux   | `~/.local/share/superselection/`                |
 | macOS   | `~/Library/Application Support/superselection/` |
 
-Fichier JSON lisible et modifiable à la main. La variable d'environnement
-`SUPERSELECTION_DIR` change le dossier.
+Fichier JSON lisible et modifiable à la main (champs en anglais : `players`, `trait_history`,
+`note_history`…). La variable d'environnement `SUPERSELECTION_DIR` change le dossier. Un
+ancien `carnet.json` est converti au premier lancement, et gardé sous `carnet.v1.bak.json`.
 
 ## Développement
 

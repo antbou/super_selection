@@ -22,7 +22,7 @@ Clic droit dans la fenêtre = coller. La première installation dure environ une
 superselection
 ```
 
-Au premier lancement, l'outil demande un pseudo (il signe les traits à l'export). Ensuite,
+Au premier lancement, l'outil demande un pseudo (il signe tes traits et notes). Ensuite,
 saisir le nom d'un adversaire ; `help` affiche les commandes.
 
 ---
@@ -39,7 +39,8 @@ Créer un raccourci sur le bureau vers `C:\Users\<utilisateur>\.local\bin\supers
 
 ## Emplacement du carnet
 
-`%APPDATA%\superselection\carnet.json`. Pour ouvrir le dossier : touche Windows + R, coller
+`%APPDATA%\superselection\notebook.json` (avant la 0.15.0 : `carnet.json`, converti
+au premier lancement et gardé sous `carnet.v1.bak.json`). Pour ouvrir le dossier : touche Windows + R, coller
 `%APPDATA%\superselection`, puis Entrée. Copier ce fichier pour une sauvegarde.
 
 ## Désinstaller
@@ -79,13 +80,13 @@ relancer avec `refresh` plus tard.
 
 **« Carnet illisible »**
 
-Le fichier `carnet.json` est abîmé (ou n'est pas un carnet). Le message donne son chemin et
+Le fichier `notebook.json` (ou l'ancien `carnet.json` à convertir) est abîmé (ou n'est pas un carnet). Le message donne son chemin et
 la raison. Le fichier n'est jamais modifié : le corriger, ou le renommer pour repartir d'un
 carnet vide. La fenêtre reste ouverte jusqu'à l'appui sur Entrée.
 
 **« Erreur inattendue »**
 
-Le détail technique est écrit dans `erreur.log`, dans le même dossier que `carnet.json`
+Le détail technique est écrit dans `erreur.log`, dans le même dossier que `notebook.json`
 (le message indique le chemin exact ; en général `%APPDATA%\superselection`). Joindre ce
 fichier à tout signalement.
 

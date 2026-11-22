@@ -1,4 +1,9 @@
-from superselection.carnet import Carnet
+import json
+
+import pytest
+
+from superselection import carnet as module_carnet
+from superselection.carnet import Carnet, CarnetInvalide, Revision, migrer_ancien_fichier
 
 
 def test_croiser_cree_puis_incremente():
@@ -10,15 +15,6 @@ def test_croiser_cree_puis_incremente():
     assert len(c.joueurs) == 1
 
 
-def test_noter_et_effacer_son_trait():
-    c = Carnet(auteur="Antho")
-    c.croiser("Pizza", quand="2026-11-10")
-    c.noter("Pizza", "agressif, rush archers", maintenant="2026-11-10T20:00")
-    assert c.trouver("PIZZA").traits["Antho"].texte == "agressif, rush archers"
-    c.noter("Pizza", "", maintenant="2026-11-10T21:00")
-    assert "Antho" not in c.trouver("Pizza").traits
-
-
 def test_recents_du_plus_recent_au_plus_ancien():
     c = Carnet(auteur="Antho")
     c.croiser("A", quand="2026-11-01")
@@ -27,99 +23,253 @@ def test_recents_du_plus_recent_au_plus_ancien():
     assert [j.nom for j in c.recents()] == ["B", "C", "A"]
 
 
-def test_sauver_puis_charger(tmp_path):
-    chemin = tmp_path / "carnet.json"
+# --- trait et note communs, avec historique (ADR 0022) ---------------------------
+
+
+def test_noter_ajoute_une_version_au_trait_commun():
     c = Carnet(auteur="Antho")
-    c.croiser("妮蔻", quand="2026-11-10")
-    c.noter("妮蔻", "défensif", maintenant="2026-11-10T20:00")
+    c.noter("Pizza", "aggressive", maintenant="2026-11-10T20:00")
+    c.noter("pizza", "aggressive, pro", maintenant="2026-11-11T20:00")
+    pizza = c.trouver("Pizza")
+    assert pizza.trait == "aggressive, pro"
+    assert pizza.historique_trait == [
+        Revision("aggressive", "Antho", "2026-11-10T20:00"),
+        Revision("aggressive, pro", "Antho", "2026-11-11T20:00"),
+    ]
+
+
+def test_effacer_le_trait_garde_l_historique():
+    c = Carnet(auteur="Antho")
+    c.noter("Pizza", "noob", maintenant="2026-11-10T20:00")
+    c.noter("Pizza", "", maintenant="2026-11-10T21:00")
+    pizza = c.trouver("Pizza")
+    assert pizza.trait == ""
+    assert [r.texte for r in pizza.historique_trait] == ["noob", ""]
+
+
+def test_meme_valeur_n_ajoute_pas_de_version():
+    c = Carnet(auteur="Antho")
+    c.noter("Pizza", "pro", maintenant="2026-11-10T20:00")
+    c.noter("Pizza", "pro", maintenant="2026-11-11T20:00")
+    c.memoriser("Pizza", "", maintenant="2026-11-11T20:00")  # rien à effacer
+    assert len(c.trouver("Pizza").historique_trait) == 1
+    assert c.trouver("Pizza").historique_note == []
+
+
+def test_memoriser_nettoie_et_n_ajoute_pas_de_joueur_pour_rien():
+    c = Carnet(auteur="Antho")
+    c.memoriser("Pizza", "  m'a insulté\x07, rush à 3 min  ", maintenant="2026-11-10T20:00")
+    assert c.trouver("pizza").note == "m'a insulté, rush à 3 min"
+    c.memoriser("Bob", "", maintenant="2026-11-10T20:00")
+    assert c.trouver("Bob") is None
+
+
+def test_modification_locale_passe_devant_une_version_datee_du_futur():
+    # horloge du pote en avance : ma modification doit quand même devenir la version actuelle
+    c = Carnet(auteur="Antho")
+    paul = Carnet(auteur="Paul")
+    paul.memoriser("Bob", "de Paul", maintenant="2026-11-10T22:00")
+    c.fusionner(paul)
+    c.memoriser("Bob", "de moi", maintenant="2026-11-10T21:00")
+    assert c.trouver("Bob").note == "de moi"
+
+
+# --- fichier JSON (format 2, en anglais) -----------------------------------------
+
+
+def test_sauver_puis_charger(tmp_path):
+    chemin = tmp_path / "notebook.json"
+    c = Carnet(auteur="Antho")
+    c.croiser("妮蔻", quand="2026-11-10T19:00")
+    c.noter("妮蔻", "defence", maintenant="2026-11-10T20:00")
+    c.memoriser("妮蔻", "joue le soir", maintenant="2026-11-10T20:00")
     c.sauver(chemin)
+    brut = json.loads(chemin.read_text(encoding="utf-8"))
+    assert brut == {
+        "version": 2,
+        "owner": "Antho",
+        "players": [
+            {
+                "name": "妮蔻",
+                "encountered_by": {"Antho": {"count": 1, "last": "2026-11-10T19:00"}},
+                "trait_history": [{"text": "defence", "by": "Antho", "at": "2026-11-10T20:00"}],
+                "note_history": [{"text": "joue le soir", "by": "Antho", "at": "2026-11-10T20:00"}],
+            }
+        ],
+    }
+    assert "妮蔻" in chemin.read_text(encoding="utf-8")
     relu = Carnet.charger(chemin)
     assert relu.auteur == "Antho"
-    assert relu.trouver("妮蔻").traits["Antho"].texte == "défensif"
-    assert "妮蔻" in chemin.read_text(encoding="utf-8")
+    assert relu.trouver("妮蔻").trait == "defence"
+    assert relu.trouver("妮蔻").note == "joue le soir"
 
 
-def test_fusion_ajoute_les_joueurs_et_notes_du_pote():
+def test_historiques_vides_absents_du_fichier():
+    c = Carnet(auteur="Antho")
+    c.croiser("Bob", quand="2026-11-10")
+    assert c.vers_dict()["players"][0] == {"name": "Bob", "encountered_by": {"Antho": {"count": 1, "last": "2026-11-10"}}}
+
+
+# --- migration depuis le format 1 (carnet.json, en français) ----------------------
+
+
+ANCIEN = {
+    "version": 1,
+    "auteur": "Antho",
+    "joueurs": [
+        {
+            "nom": "Pizza",
+            "rencontres": 3,
+            "derniere": "2026-11-10T19:00",
+            "styles": {
+                "Antho": {"texte": "aggressive", "maj": "2026-11-09T20:00"},
+                "Kevin": {"texte": "pro", "maj": "2026-11-10T20:00"},
+            },
+            "memo": "rush à 3 min",
+            "memo_maj": "2026-11-08T20:00",
+            "notes": {"Léa": {"texte": "joue le soir", "maj": "2026-11-07T20:00"}},
+        }
+    ],
+}
+
+
+def test_format_1_converti_en_historiques_communs():
+    c = Carnet.depuis_dict(ANCIEN)
+    assert c.auteur == "Antho"
+    pizza = c.trouver("Pizza")
+    assert (pizza.rencontres, pizza.derniere) == (3, "2026-11-10T19:00")
+    assert pizza.trait == "pro"  # la plus récente l'emporte
+    assert pizza.historique_trait == [
+        Revision("aggressive", "Antho", "2026-11-09T20:00"),
+        Revision("pro", "Kevin", "2026-11-10T20:00"),
+    ]
+    assert pizza.note == "rush à 3 min"
+    assert pizza.historique_note == [
+        Revision("joue le soir", "Léa", "2026-11-07T20:00"),
+        Revision("rush à 3 min", "Antho", "2026-11-08T20:00"),
+    ]
+
+
+def test_migrer_ancien_fichier(tmp_path):
+    (tmp_path / "carnet.json").write_text(json.dumps(ANCIEN), encoding="utf-8")
+    sauvegarde = migrer_ancien_fichier(tmp_path)
+    assert sauvegarde == tmp_path / "carnet.v1.bak.json"
+    assert not (tmp_path / "carnet.json").exists()
+    assert json.loads(sauvegarde.read_text(encoding="utf-8")) == ANCIEN
+    nouveau = Carnet.charger(tmp_path / "notebook.json")
+    assert nouveau.trouver("Pizza").trait == "pro"
+
+
+def test_migrer_ne_fait_rien_sans_ancien_fichier_ou_si_le_nouveau_existe(tmp_path):
+    assert migrer_ancien_fichier(tmp_path) is None
+    Carnet(auteur="Antho").sauver(tmp_path / "notebook.json")
+    (tmp_path / "carnet.json").write_text(json.dumps(ANCIEN), encoding="utf-8")
+    assert migrer_ancien_fichier(tmp_path) is None
+    assert Carnet.charger(tmp_path / "notebook.json").joueurs == []
+
+
+def test_migrer_ancien_fichier_illisible_ne_touche_a_rien(tmp_path):
+    (tmp_path / "carnet.json").write_text("{", encoding="utf-8")
+    with pytest.raises(CarnetInvalide):
+        migrer_ancien_fichier(tmp_path)
+    assert (tmp_path / "carnet.json").exists()
+    assert not (tmp_path / "notebook.json").exists()
+
+
+# --- fusion : la version la plus récente l'emporte, l'historique garde tout -------
+
+
+def test_fusion_ajoute_les_joueurs_et_les_versions_du_pote():
     moi = Carnet(auteur="Antho")
     moi.croiser("Pizza", quand="2026-11-10")
-    moi.noter("Pizza", "agressif", maintenant="2026-11-10T20:00")
+    moi.noter("Pizza", "aggressive", maintenant="2026-11-10T20:00")
 
     pote = Carnet(auteur="Kevin")
     pote.croiser("pizza", quand="2026-11-11")
     pote.croiser("pizza", quand="2026-11-12")
-    pote.noter("pizza", "spam cavalerie", maintenant="2026-11-12T20:00")
+    pote.noter("pizza", "pro", maintenant="2026-11-12T20:00")
     pote.croiser("Ram Pam", quand="2026-11-12")
-    pote.noter("Ram Pam", "passif", maintenant="2026-11-12T21:00")
+    pote.memoriser("Ram Pam", "passif", maintenant="2026-11-12T21:00")
+    pote.croiser("Bob", quand="2026-11-12")  # ni trait ni note : pas importé
 
     bilan = moi.fusionner(pote)
 
-    assert (bilan.joueurs_ajoutes, bilan.traits_ajoutes, bilan.traits_maj) == (1, 2, 0)
+    assert (bilan.joueurs_ajoutes, bilan.versions_ajoutees, bilan.traits_maj, bilan.notes_maj) == (1, 2, 1, 1)
     pizza = moi.trouver("Pizza")
     assert pizza.rencontres == 1  # seules mes rencontres comptent
-    assert pizza.traits["Antho"].texte == "agressif"
-    assert pizza.traits["Kevin"].texte == "spam cavalerie"
+    assert pizza.trait == "pro"  # celle de Kevin est plus récente
+    assert [r.auteur for r in pizza.historique_trait] == ["Antho", "Kevin"]
     ram = moi.trouver("ram pam")
-    assert ram.rencontres == 0
-    assert ram.traits["Kevin"].texte == "passif"
-
-
-def test_fusion_ne_touche_jamais_mes_notes():
-    moi = Carnet(auteur="Antho")
-    moi.croiser("Pizza", quand="2026-11-10")
-    moi.noter("Pizza", "agressif", maintenant="2026-11-10T20:00")
-
-    pote = Carnet(auteur="Kevin")
-    pote.croiser("Pizza", quand="2026-11-10")
-    pote.noter("Pizza", "x", maintenant="2026-11-10T20:00")
-    pote.trouver("Pizza").traits["Antho"] = pote.trouver("Pizza").traits["Kevin"].__class__(
-        texte="falsifié", maj="2099-01-01T00:00"
-    )
-
-    moi.fusionner(pote)
-    assert moi.trouver("Pizza").traits["Antho"].texte == "agressif"
-
-
-def test_reimport_met_a_jour_seulement_si_plus_recent():
-    moi = Carnet(auteur="Antho")
-    v1 = Carnet(auteur="Kevin")
-    v1.croiser("Pizza", quand="2026-11-10")
-    v1.noter("Pizza", "passif", maintenant="2026-11-10T20:00")
-    moi.fusionner(v1)
-
-    v2 = Carnet(auteur="Kevin")
-    v2.croiser("Pizza", quand="2026-11-12")
-    v2.noter("Pizza", "en fait agressif", maintenant="2026-11-12T20:00")
-    bilan = moi.fusionner(v2)
-    assert bilan.traits_maj == 1
-    assert moi.trouver("Pizza").traits["Kevin"].texte == "en fait agressif"
-
-    bilan = moi.fusionner(v1)  # ancienne version : ignorée
-    assert (bilan.traits_ajoutes, bilan.traits_maj) == (0, 0)
-    assert moi.trouver("Pizza").traits["Kevin"].texte == "en fait agressif"
-
-
-def test_fusion_ignore_les_joueurs_sans_note():
-    moi = Carnet(auteur="Antho")
-    pote = Carnet(auteur="Kevin")
-    pote.croiser("Bob", quand="2026-11-12")
-    bilan = moi.fusionner(pote)
-    assert bilan.joueurs_ajoutes == 0
+    assert (ram.rencontres, ram.note) == (0, "passif")
     assert moi.trouver("Bob") is None
+
+
+def test_version_importee_plus_ancienne_va_dans_l_historique_sans_gagner():
+    moi = Carnet(auteur="Antho")
+    moi.noter("Pizza", "aggressive", maintenant="2026-11-12T20:00")
+    pote = Carnet(auteur="Kevin")
+    pote.noter("Pizza", "noob", maintenant="2026-11-10T20:00")
+    bilan = moi.fusionner(pote)
+    assert (bilan.versions_ajoutees, bilan.traits_maj) == (1, 0)
+    pizza = moi.trouver("Pizza")
+    assert pizza.trait == "aggressive"
+    assert [r.texte for r in pizza.historique_trait] == ["noob", "aggressive"]
+
+
+def test_le_pote_modifie_ma_note_et_je_recupere_sa_version():
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Bob", "rush", maintenant="2026-11-10T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.fusionner(moi)
+    assert paul.trouver("Bob").note == "rush"  # Paul voit ma note comme la sienne
+    paul.memoriser("Bob", "rush à 3 min", maintenant="2026-11-11T20:00")
+    assert moi.fusionner(paul).notes_maj == 1
+    bob = moi.trouver("Bob")
+    assert bob.note == "rush à 3 min"
+    assert [(r.texte, r.auteur) for r in bob.historique_note] == [("rush", "Antho"), ("rush à 3 min", "Paul")]
+
+
+def test_un_effacement_plus_recent_se_propage():
+    moi = Carnet(auteur="Antho")
+    moi.noter("Bob", "noob", maintenant="2026-11-10T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.fusionner(moi)
+    paul.noter("Bob", "", maintenant="2026-11-11T20:00")
+    moi.fusionner(paul)
+    assert moi.trouver("Bob").trait == ""
+
+
+def test_fusion_idempotente():
+    moi = Carnet(auteur="Antho")
+    moi.noter("Bob", "noob", maintenant="2026-11-10T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.noter("Bob", "pro", maintenant="2026-11-11T20:00")
+    moi.fusionner(paul)
+    paul.fusionner(moi)
+    bilan = moi.fusionner(paul)
+    assert (bilan.joueurs_ajoutes, bilan.versions_ajoutees, bilan.traits_maj, bilan.notes_maj) == (0, 0, 0, 0)
+    assert len(moi.trouver("Bob").historique_trait) == 2
+    assert moi.trouver("Bob").historique_trait == paul.trouver("Bob").historique_trait
+
+
+def test_fusion_d_un_ancien_carnet_format_1():
+    moi = Carnet(auteur="Antho")
+    moi.noter("Pizza", "noob", maintenant="2026-11-01T20:00")
+    bilan = moi.fusionner(Carnet.depuis_dict(ANCIEN))
+    assert moi.trouver("Pizza").trait == "pro"
+    assert moi.trouver("Pizza").note == "rush à 3 min"
+    assert bilan.versions_ajoutees == 4
 
 
 # --- validation à la lecture ---------------------------------------------------
 
-import pytest
 
-from superselection.carnet import CarnetInvalide
-
-
-def _joueur(**champs):
-    return {"nom": "Bob", **champs}
+def _ancien(**joueur):
+    return {"auteur": "Kevin", "joueurs": [{"nom": "Bob", **joueur}]}
 
 
-def _carnet(**joueur):
-    return {"auteur": "Kevin", "joueurs": [_joueur(**joueur)]}
+def _nouveau(**joueur):
+    return {"version": 2, "owner": "Kevin", "players": [{"name": "Bob", **joueur}]}
 
 
 @pytest.mark.parametrize(
@@ -133,16 +283,30 @@ def _carnet(**joueur):
         {"joueurs": [{"nom": 3}]},
         {"joueurs": [{"nom": ""}]},
         {"joueurs": [{"nom": "\x1b\x07"}]},
-        _carnet(rencontres="a"),
-        _carnet(rencontres=-1),
-        _carnet(rencontres=True),
-        _carnet(rencontres=1.5),
-        _carnet(derniere=3),
-        _carnet(derniere="hier"),
-        _carnet(styles=[]),
-        _carnet(styles={"Kevin": "rush"}),
-        _carnet(styles={"Kevin": {"texte": 3}}),
-        _carnet(styles={"Kevin": {"texte": "rush", "maj": 3}}),
+        _ancien(rencontres="a"),
+        _ancien(rencontres=-1),
+        _ancien(rencontres=True),
+        _ancien(rencontres=1.5),
+        _ancien(derniere=3),
+        _ancien(derniere="hier"),
+        _ancien(styles=[]),
+        _ancien(styles={"Kevin": "rush"}),
+        _ancien(styles={"Kevin": {"texte": 3}}),
+        _ancien(styles={"Kevin": {"texte": "rush", "maj": 3}}),
+        _ancien(memo=3),
+        {"owner": 3, "players": []},
+        {"owner": "Kevin", "players": {}},
+        {"owner": "Kevin", "players": [{"name": ""}]},
+        _nouveau(encountered_by=[]),
+        _nouveau(encountered_by={"K": 3}),
+        _nouveau(encountered_by={"K": {"count": -1}}),
+        _nouveau(encountered_by={"K": {"count": True}}),
+        _nouveau(encountered_by={"K": {"count": 1, "last": "hier"}}),
+        _nouveau(trait_history={}),
+        _nouveau(trait_history=["pro"]),
+        _nouveau(note_history=[{"text": 3, "by": "K", "at": ""}]),
+        _nouveau(note_history=[{"text": "x", "by": 3, "at": ""}]),
+        _nouveau(note_history=[{"text": "x", "by": "K", "at": 3}]),
     ],
 )
 def test_depuis_dict_refuse_les_carnets_invalides(brut):
@@ -151,28 +315,31 @@ def test_depuis_dict_refuse_les_carnets_invalides(brut):
 
 
 def test_message_d_erreur_situe_le_joueur():
-    brut = {"joueurs": [{"nom": "Al"}, {"nom": "Bob"}, {"nom": "Bob2", "rencontres": "a"}]}
-    with pytest.raises(CarnetInvalide, match=r"joueur n°3 \(« Bob2 »\).*rencontres"):
+    brut = {"owner": "K", "players": [{"name": "Al"}, {"name": "Bob"}, {"name": "Bob2", "trait_history": "a"}]}
+    with pytest.raises(CarnetInvalide, match=r"joueur n°3 \(« Bob2 »\).*trait_history"):
         Carnet.depuis_dict(brut)
 
 
 def test_depuis_dict_valeurs_par_defaut():
-    c = Carnet.depuis_dict({"joueurs": [{"nom": "Bob", "styles": {"K": {"texte": "rush"}}}]})
+    c = Carnet.depuis_dict({"players": [{"name": "Bob", "trait_history": [{"text": "pro"}]}]})
     assert c.auteur == "?"
-    assert c.trouver("Bob").traits["K"].maj == ""
+    assert c.trouver("Bob").historique_trait == [Revision("pro", "?", "")]
     assert c.trouver("Bob").derniere is None
 
 
 def test_depuis_dict_nettoie_les_textes():
     brut = {
-        "auteur": " Ke\x1b[2Jvin ",
-        "joueurs": [
-            {"nom": " Bob\x07 ", "derniere": "2026-11-15T10:00", "styles": {"K\x1bx": {"texte": "ru\nsh ", "maj": ""}}}
+        "owner": " Ke\x1b[2Jvin ",
+        "players": [
+            {
+                "name": " Bob\x07 ",
+                "trait_history": [{"text": "ru\nsh ", "by": "K\x1bx", "at": ""}],
+            }
         ],
     }
     c = Carnet.depuis_dict(brut)
     assert c.auteur == "Ke[2Jvin"
-    assert c.trouver("Bob").traits["Kx"].texte == "rush"
+    assert c.trouver("Bob").historique_trait == [Revision("rush", "Kx", "")]
 
 
 def test_charger_json_casse(tmp_path):
@@ -190,8 +357,6 @@ def test_charger_fichier_binaire(tmp_path):
 
 
 # --- enregistrement impossible -------------------------------------------------
-
-from superselection import carnet as module_carnet
 
 
 def test_sauver_reessaie_apres_un_permission_error(tmp_path, monkeypatch):
@@ -224,83 +389,130 @@ def test_sauver_abandonne_et_nettoie_le_tmp(tmp_path, monkeypatch):
     assert not (tmp_path / "c.json.tmp").exists()
 
 
-def test_memo_enregistre_efface_et_survit_au_fichier(tmp_path):
-    c = Carnet(auteur="Antho")
-    c.memoriser("Pizza", "  m'a insulté, rush à 3 min  ")
-    assert c.trouver("pizza").memo == "m'a insulté, rush à 3 min"
-    c.sauver(tmp_path / "c.json")
-    assert Carnet.charger(tmp_path / "c.json").trouver("Pizza").memo == "m'a insulté, rush à 3 min"
-    c.memoriser("Pizza", "")
-    assert c.trouver("Pizza").memo == ""
-    assert "memo" not in c.vers_dict()["joueurs"][0]
+# --- rencontres des autres (encountered_by) ------------------------------------
 
 
-def test_note_exportee_puis_fusionnee_signee_par_son_auteur(tmp_path):
-    kevin = Carnet(auteur="Kevin")
-    kevin.memoriser("Pizza", "joue le soir", maintenant="2026-11-15T20:00")
-    kevin.sauver(tmp_path / "kevin.json")
-    assert "joue le soir" in (tmp_path / "kevin.json").read_text(encoding="utf-8")
-
+def test_rencontres_du_pote_importees_a_son_nom_jamais_les_miennes():
     moi = Carnet(auteur="Antho")
-    moi.memoriser("Pizza", "privé", maintenant="2026-11-14T20:00")
-    bilan = moi.fusionner(Carnet.charger(tmp_path / "kevin.json"))
-    assert (bilan.notes_ajoutees, bilan.notes_maj) == (1, 0)
-    pizza = moi.trouver("Pizza")
-    assert pizza.memo == "privé"  # ma note jamais écrasée
-    assert pizza.notes["Kevin"].texte == "joue le soir"
-
-
-def test_note_importee_seule_suffit_a_ajouter_le_joueur():
-    kevin = Carnet(auteur="Kevin")
-    kevin.memoriser("Bob", "m'a insulté", maintenant="2026-11-15T20:00")
-    moi = Carnet(auteur="Antho")
-    assert moi.fusionner(kevin).joueurs_ajoutes == 1
-    assert moi.trouver("Bob").notes["Kevin"].texte == "m'a insulté"
-
-
-def test_note_importee_remplacee_seulement_par_plus_recente():
-    moi = Carnet(auteur="Antho")
-    v2 = Carnet(auteur="Kevin")
-    v2.memoriser("Bob", "nouvelle", maintenant="2026-11-16T20:00")
-    moi.fusionner(v2)
-    v1 = Carnet(auteur="Kevin")
-    v1.memoriser("Bob", "ancienne", maintenant="2026-11-10T20:00")
-    assert moi.fusionner(v1).notes_maj == 0
-    assert moi.trouver("Bob").notes["Kevin"].texte == "nouvelle"
-    v3 = Carnet(auteur="kevin")
-    v3.memoriser("Bob", "encore plus récente", maintenant="2026-11-20T20:00")
-    assert moi.fusionner(v3).notes_maj == 1
-    assert list(moi.trouver("Bob").notes) == ["Kevin"]
-    assert moi.trouver("Bob").notes["Kevin"].texte == "encore plus récente"
-
-
-def test_note_d_un_tiers_reexportee_et_ma_note_revenue_ignoree(tmp_path):
-    moi = Carnet(auteur="Antho")
-    moi.memoriser("Bob", "à moi", maintenant="2026-11-15T20:00")
-    lea = Carnet(auteur="Léa")
-    lea.memoriser("Bob", "de Léa", maintenant="2026-11-15T20:00")
-    kevin = Carnet(auteur="Kevin")
-    kevin.fusionner(lea)
-    kevin.fusionner(moi)
-    kevin.sauver(tmp_path / "kevin.json")
-    moi.memoriser("Bob", "à moi, modifiée", maintenant="2026-11-16T20:00")
-    moi.fusionner(Carnet.charger(tmp_path / "kevin.json"))
+    moi.croiser("Bob", quand="2026-11-10T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.croiser("Bob", quand="2026-11-12T20:00")
+    paul.noter("Bob", "pro", maintenant="2026-11-12T20:00")
+    paul.trouver("Bob").autres_rencontres["antho"] = module_carnet.Rencontres(99, "2099-01-01")
+    moi.fusionner(paul)
     bob = moi.trouver("Bob")
-    assert bob.memo == "à moi, modifiée"
-    assert set(bob.notes) == {"Léa"}  # ma propre note revenue par Kevin n'est pas recopiée
+    assert (bob.rencontres, bob.derniere) == (1, "2026-11-10T20:00")
+    assert bob.autres_rencontres == {"Paul": module_carnet.Rencontres(1, "2026-11-12T20:00")}
 
 
-def test_fusion_compare_les_auteurs_sans_la_casse():
+def test_rencontres_des_autres_gardent_la_plus_recente_et_survivent_au_fichier(tmp_path):
     moi = Carnet(auteur="Antho")
-    v1 = Carnet(auteur="Kevin")
-    v1.croiser("Bob", quand="2026-11-10")
-    v1.noter("Bob", "noob", maintenant="2026-11-10T20:00")
-    moi.fusionner(v1)
+    moi.noter("Bob", "pro", maintenant="2026-11-10T20:00")
+    for quand in ("2026-11-12T20:00", "2026-11-12T21:00"):
+        paul = Carnet(auteur="Paul")
+        paul.croiser("Bob", quand=quand)
+        moi.fusionner(paul)
+    moi.sauver(tmp_path / "n.json")
+    bob = Carnet.charger(tmp_path / "n.json").trouver("Bob")
+    assert bob.autres_rencontres["Paul"].derniere == "2026-11-12T21:00"
+    assert bob.rencontres == 0
 
-    v2 = Carnet(auteur="kevin")
-    v2.croiser("Bob", quand="2026-11-12")
-    v2.noter("Bob", "pro", maintenant="2026-11-12T20:00")
-    bilan = moi.fusionner(v2)
-    assert (bilan.traits_ajoutes, bilan.traits_maj) == (0, 1)
-    assert list(moi.trouver("Bob").traits) == ["Kevin"]
-    assert moi.trouver("Bob").traits["Kevin"].texte == "pro"
+
+# --- conflits et choix à l'import ----------------------------------------------
+
+
+def _deux_notes():
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Bob", "rush", maintenant="2026-11-07T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.memoriser("Bob", "rush archers", maintenant="2026-11-21T20:00")
+    return moi, paul
+
+
+def test_conflit_quand_chacun_a_modifie_de_son_cote():
+    moi, paul = _deux_notes()
+    [conflit] = moi.conflits(paul)
+    assert (conflit.nom, conflit.champ, conflit.mienne.texte, conflit.sienne.texte) == ("Bob", "note", "rush", "rush archers")
+
+
+def test_pas_de_conflit_si_sa_version_est_deja_dans_mon_historique():
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Bob", "ancienne", maintenant="2026-11-07T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.fusionner(moi)
+    moi.memoriser("Bob", "nouvelle", maintenant="2026-11-08T20:00")
+    assert moi.conflits(paul) == []
+
+
+def test_pas_de_conflit_sans_version_chez_moi_ou_meme_valeur():
+    moi = Carnet(auteur="Antho")
+    moi.croiser("Bob", quand="2026-11-07")
+    moi.noter("Bob", "pro", maintenant="2026-11-07T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.memoriser("Bob", "x", maintenant="2026-11-08T20:00")
+    paul.noter("Bob", "pro", maintenant="2026-11-08T20:00")
+    assert moi.conflits(paul) == []
+
+
+@pytest.mark.parametrize(
+    "choix, attendu, ajoutee",
+    [
+        ("recente", "rush archers", False),
+        ("mienne", "rush", True),
+        ("sienne", "rush archers", False),
+        ("fusion", "rush / rush archers", True),
+    ],
+)
+def test_resoudre_un_conflit(choix, attendu, ajoutee):
+    moi, paul = _deux_notes()
+    [conflit] = moi.conflits(paul)
+    moi.fusionner(paul)
+    assert moi.resoudre(conflit, choix, maintenant="2026-11-22T10:00") is ajoutee
+    assert moi.trouver("Bob").note == attendu
+
+
+def test_choix_enregistre_gagne_aussi_chez_le_pote():
+    moi, paul = _deux_notes()
+    [conflit] = moi.conflits(paul)
+    moi.fusionner(paul)
+    moi.resoudre(conflit, "mienne", maintenant="2026-11-22T10:00")
+    assert moi.trouver("Bob").version("note") == Revision("rush", "Antho", "2026-11-22T10:00")
+    assert paul.conflits(moi) == []  # sa version est dans mon historique : pas de question chez lui
+    paul.fusionner(moi)
+    assert paul.trouver("Bob").note == "rush"
+
+
+def test_sans_suppression_garde_ma_note_si_le_pote_l_a_effacee():
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Bob", "rush", maintenant="2026-11-07T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.memoriser("Bob", "autre", maintenant="2026-11-08T20:00")
+    paul.memoriser("Bob", "", maintenant="2026-11-21T20:00")
+    [conflit] = moi.conflits(paul)
+    moi.fusionner(paul)
+    assert moi.trouver("Bob").note == ""
+    assert moi.resoudre(conflit, "sans_suppression", maintenant="2026-11-22T10:00")
+    assert moi.trouver("Bob").note == "rush"
+
+
+def test_sans_suppression_ne_change_rien_si_ce_n_est_pas_une_suppression():
+    moi, paul = _deux_notes()
+    [conflit] = moi.conflits(paul)
+    moi.fusionner(paul)
+    assert not moi.resoudre(conflit, "sans_suppression", maintenant="2026-11-22T10:00")
+    assert moi.trouver("Bob").note == "rush archers"
+
+
+def test_fusion_de_deux_traits_reunit_les_mots_cles():
+    assert module_carnet.reunir("trait", "aggressive, pro", "pro, noob") == "aggressive, pro, noob"
+    assert module_carnet.reunir("note", "", "x") == "x"
+    assert module_carnet.reunir("note", "x", "x") == "x"
+
+
+def test_pas_de_conflit_si_le_pote_a_remplace_ma_version():
+    moi = Carnet(auteur="Antho")
+    moi.memoriser("Bob", "rush", maintenant="2026-11-07T20:00")
+    paul = Carnet(auteur="Paul")
+    paul.fusionner(moi)
+    paul.memoriser("Bob", "rush à 3 min", maintenant="2026-11-08T20:00")
+    assert moi.conflits(paul) == []

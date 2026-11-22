@@ -8,7 +8,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
 
-from .carnet import Carnet, Joueur
+HISTORIQUE_MAX = 10  # versions passées affichées dans show et edit
+
+from .carnet import Carnet, Conflit, Joueur, Revision
 from .classement import MODES, Classement
 from .couleurs import peindre, role_rang
 from .traits import aide_traits, decorer, valider
@@ -16,18 +18,19 @@ from .texte import ajuster, cle_alphabetique, largeur, sans_controle, tronquer
 
 AIDE = """\
 Saisir le nom d'un adversaire : affiche son rang dans le top 100, compte la
-rencontre, puis demande un trait et une note perso (Entrée = garder, « - » = effacer).
+rencontre, puis demande le trait et la note (Entrée = garder, « - » = effacer).
+Trait et note sont communs : la version la plus récente l'emporte, show garde l'historique.
 Tab complète les noms (top 100 + joueurs déjà croisés).
 
   <nom>             croiser un joueur              ex : [IMP] Pizza
   top [1v1|2v2]     afficher le top 100, recherche en tapant (Tab = changer de mode)
-  show <nom>        afficher la fiche (saisons dans le top 100), sans compter
+  show <nom>        afficher la fiche (saisons, historique), sans compter
   edit <nom>        modifier nom, trait et note (champs pré-remplis), sans compter
   list              lister les joueurs déjà croisés
   delete <nom>      supprimer un joueur du carnet (confirmation)
   reset             vider le carnet (confirmation)
   export [fichier]  exporter le carnet (sur le Bureau)   ex : export antho.json
-  import <fichier>  fusionner un carnet exporté          ex : import kevin.json
+  import <fichier>  fusionner un carnet exporté (conflits : choix proposé)  ex : import kevin.json
   refresh           recharger le classement
   update [--force]  installer la dernière version (--force : réinstaller sans vérifier)
   version           afficher la version installée
@@ -210,7 +213,10 @@ class App:
         vient_de_croiser: bool = False,
         deja_compte: bool = False,
         historique: bool = False,
+        versions: bool = False,
     ) -> str:
+        """`historique` : saisons passées et détail des rencontres (show) ;
+        `versions` : anciennes versions du trait et de la note (show et edit)."""
         lignes = [self._c(nom, "nom")]
         if historique and self.classement is not None:
             lignes += self._lignes_saisons(nom)
@@ -236,16 +242,46 @@ class App:
             lignes.append(
                 f"  Croisé {joueur.rencontres} fois — dernière fois le {_date_fr(joueur.derniere)}"
             )
-        if joueur and joueur.memo:
-            lignes.append("  Note : " + joueur.memo)
-        for auteur, note in sorted((joueur.notes if joueur else {}).items(), key=lambda a: a[0].casefold()):
-            lignes.append(f"  Note ({self._c(auteur, 'auteur')}) : " + note.texte)
-        traits = joueur.traits if joueur else {}
-        if not traits:
+        if historique and joueur and joueur.autres_rencontres:
+            autres = sorted(joueur.autres_rencontres.items(), key=lambda a: a[0].casefold())
+            lignes.append(
+                "  Rencontres des autres : "
+                + ", ".join(f"{self._c(a, 'auteur')} {r.nombre} fois ({_date_fr(r.derniere)})" for a, r in autres)
+            )
+        note = joueur.version("note") if joueur else None
+        if note and note.texte:
+            lignes.append("  Note : " + note.texte + self._signature(note))
+        trait = joueur.version("trait") if joueur else None
+        if trait and trait.texte:
+            lignes.append("  Trait : " + self._c(decorer(trait.texte), "trait") + self._signature(trait))
+        else:
             lignes.append("  Trait : " + self._c("pas encore noté", "info"))
-        for auteur, note in sorted(traits.items(), key=lambda a: a[0] != self.carnet.auteur):
-            lignes.append(f"  Trait ({self._c(auteur, 'auteur')}) : " + self._c(decorer(note.texte), "trait"))
+        if versions and joueur:
+            lignes += self._lignes_historique(joueur)
         return "\n".join(lignes)
+
+    def _signature(self, version: Revision) -> str:
+        return self._c(f"  ({version.auteur}, {_date_fr(version.maj)})", "info")
+
+    def _lignes_historique(self, joueur: Joueur) -> list:
+        """Les versions remplacées du trait et de la note, de la plus récente à la plus ancienne."""
+        passees = [(r, "trait") for r in joueur.historique_trait[:-1]]
+        passees += [(r, "note") for r in joueur.historique_note[:-1]]
+        if not passees:
+            return []
+        passees.sort(key=lambda v: v[0].maj, reverse=True)
+        colonne = max(largeur(r.auteur) for r, _ in passees[:HISTORIQUE_MAX])
+        lignes = ["  " + self._c(f"Historique ({len(passees)} version(s) remplacée(s)) :", "info")]
+        for r, champ in passees[:HISTORIQUE_MAX]:
+            if r.texte:
+                texte = self._c(decorer(r.texte), "trait") if champ == "trait" else r.texte
+            else:
+                texte = self._c("(effacé)" if champ == "trait" else "(effacée)", "info")
+            lignes.append(
+                f"    {_date_fr(r.maj)}  " + self._c(ajuster(r.auteur, colonne), "auteur")
+                + f"  {champ:<5} : " + texte
+            )
+        return lignes
 
     def nom_canonique(self, nom: str) -> str:
         nom = nom.strip()
@@ -282,7 +318,7 @@ class App:
 
     def voir(self, nom: str) -> str:
         nom = self.nom_canonique(nom)
-        return self._fiche(nom, self.carnet.trouver(nom), historique=True)
+        return self._fiche(nom, self.carnet.trouver(nom), historique=True, versions=True)
 
     def modifier(self, nom: str) -> str:
         """Fiche d'un joueur déjà croisé, avant de changer son nom, son trait ou sa note : ne compte rien."""
@@ -290,7 +326,7 @@ class App:
         joueur = self.carnet.trouver(nom)
         if joueur is None:
             return self._c(f"« {nom} » n'est pas dans le carnet : saisir d'abord son nom.", "erreur")
-        return self._fiche(joueur.nom, joueur)
+        return self._fiche(joueur.nom, joueur, versions=True)
 
     @staticmethod
     def lire_top(argument: str) -> tuple:
@@ -330,14 +366,14 @@ class App:
             )
         return titre + "\n" + "\n".join("  " + l for l in lignes)
 
-    def mon_trait(self, nom: str) -> str:
+    def trait_actuel(self, nom: str) -> str:
+        """Le trait commun actuel (la version la plus récente, quel que soit son auteur)."""
         joueur = self.carnet.trouver(nom)
-        note = joueur.traits.get(self.carnet.auteur) if joueur else None
-        return note.texte if note else ""
+        return joueur.trait if joueur else ""
 
-    def mon_memo(self, nom: str) -> str:
+    def note_actuelle(self, nom: str) -> str:
         joueur = self.carnet.trouver(nom)
-        return joueur.memo if joueur else ""
+        return joueur.note if joueur else ""
 
     def memoriser(self, nom: str, texte: str) -> str:
         nom = self.nom_canonique(nom)
@@ -345,7 +381,7 @@ class App:
         if self.carnet.trouver(nom) is None:
             return self._c("Rien à effacer : joueur absent du carnet.", "info")
         self._sauver()
-        if self.mon_memo(nom):
+        if self.note_actuelle(nom):
             return self._c(f"Note enregistrée pour {nom}.", "ok")
         return self._c(f"Note effacée pour {nom}.", "ok")
 
@@ -391,35 +427,30 @@ class App:
         return self._c(f"{ancien} renommé en {nouveau}.", "ok")
 
     def _croise_par(self, joueur: Joueur) -> list:
-        """Qui connaît ce joueur : le propriétaire s'il l'a croisé (ou noté), puis les auteurs des traits importés."""
+        """Qui connaît ce joueur : le propriétaire s'il l'a croisé (ou noté), puis les autres qui l'ont
+        croisé ou ont écrit une version de son trait ou de sa note."""
         moi = self.carnet.auteur
-        noms = [moi] if (joueur.rencontres or joueur.memo or moi in joueur.traits) else []
-        autres = {a.casefold(): a for a in [*joueur.traits, *joueur.notes] if a.casefold() != moi.casefold()}
+        auteurs = joueur.auteurs()
+        noms = [moi] if (joueur.rencontres or any(a.casefold() == moi.casefold() for a in auteurs)) else []
+        autres = {
+            a.casefold(): a for a in [*joueur.autres_rencontres, *auteurs] if a.casefold() != moi.casefold()
+        }
         return noms + sorted(autres.values(), key=str.casefold)
 
     def liste(self) -> str:
         """Joueurs du carnet par ordre alphabétique, écritures non latines à la fin, avec un en-tête.
-        Concise : ni « croisé par » ni auteur des traits (ils restent dans `show`)."""
+        Concise : version actuelle seulement, ni auteurs ni historique (ils restent dans `show`)."""
         joueurs = sorted(
-            (j for j in self.carnet.joueurs if j.rencontres or j.traits or j.memo or j.notes),
+            (j for j in self.carnet.joueurs if j.rencontres or j.historique_trait or j.historique_note),
             key=lambda j: cle_alphabetique(j.nom),
         )
         if not joueurs:
             return "Aucun joueur dans le carnet."
-        def traits(j: Joueur) -> str:
-            # sans les auteurs (concis) : mon trait d'abord, chaque trait identique une seule fois
-            textes = dict.fromkeys(
-                decorer(n.texte)
-                for _, n in sorted(j.traits.items(), key=lambda a: a[0] != self.carnet.auteur)
-            )
-            return " | ".join(textes)
-
         cellules = [
             (
                 j.nom,
-                traits(j),
-                # ma note d'abord, puis celles des autres (sans leurs auteurs)
-                tronquer(" | ".join(dict.fromkeys(t for t in [j.memo, *(n.texte for n in j.notes.values())] if t)), 50),
+                decorer(j.trait),
+                tronquer(j.note, 50),
                 f"{j.rencontres}x, {_date_fr(j.derniere)}" if j.rencontres else "",
             )
             for j in joueurs
@@ -457,10 +488,16 @@ class App:
             return self._c(f"Impossible d'écrire {cible} : {erreur.strerror or erreur}", "erreur")
         return (
             f"Carnet exporté dans {cible.resolve()}.\n"
-            + self._c("Notes perso incluses : lisibles par toute personne qui reçoit le fichier.", "info")
+            + self._c("Notes et historique inclus : lisibles par toute personne qui reçoit le fichier.", "info")
         )
 
-    def importer(self, chemin: str) -> str:
+    def importer(self, chemin: str, decider: Callable[[list, str], list] | None = None) -> str:
+        """Fusionne un carnet exporté : la version la plus récente l'emporte (ADR 0022).
+
+        S'il y a des conflits (chacun a modifié de son côté), `decider(conflits, son_pseudo)` renvoie un choix
+        par conflit (« recente », « sans_suppression », « mienne », « sienne », « fusion ») ;
+        sans `decider`, la plus récente gagne. Ctrl+C dans `decider` remonte (l'appelant annule).
+        """
         if not chemin:
             return "Fichier manquant.  ex : import kevin.json"
         source = Path(chemin).expanduser()
@@ -472,14 +509,46 @@ class App:
             return self._c(
                 f"Ce fichier n'est pas un carnet superselection : {source} ({erreur})", "erreur"
             )
+        conflits = self.carnet.conflits(autre)
+        choix = decider(conflits, autre.auteur) if (conflits and decider) else ["recente"] * len(conflits)
         bilan = self.carnet.fusionner(autre)
+        maintenant = self.maintenant()
+        appliques = sum(self.carnet.resoudre(c, ch, maintenant) for c, ch in zip(conflits, choix))
         self._sauver()
-        return (
+        message = (
             f"Carnet de {autre.auteur} fusionné : {bilan.joueurs_ajoutes} joueur(s) ajouté(s), "
-            f"{bilan.traits_ajoutes} trait(s) ajouté(s), {bilan.traits_maj} trait(s) mis à jour, "
-            f"{bilan.notes_ajoutees} note(s) ajoutée(s), {bilan.notes_maj} note(s) mise(s) à jour. "
-            "Traits et notes perso existants inchangés."
+            f"{bilan.versions_ajoutees} version(s) ajoutée(s) à l'historique, "
+            f"{bilan.traits_maj} trait(s) et {bilan.notes_maj} note(s) changé(s) "
+            "(la version la plus récente l'emporte)."
         )
+        if conflits:
+            message += f" {len(conflits)} conflit(s), {appliques} choix enregistré(s) comme nouvelle version."
+        return message
+
+    def resume_conflits(self, conflits: list, auteur: str) -> str:
+        """« 3 conflit(s) avec Paul (2 note(s), 1 trait(s)), dont 1 suppression. »"""
+        notes = sum(c.champ == "note" for c in conflits)
+        suppressions = sum(not c.sienne.texte for c in conflits)
+        texte = f"{len(conflits)} conflit(s) avec {auteur} ({notes} note(s), {len(conflits) - notes} trait(s))"
+        if suppressions:
+            texte += f", dont {suppressions} suppression(s)"
+        return texte + "."
+
+    def decrire_conflit(self, conflit: Conflit) -> str:
+        """Les deux versions côte à côte, numérotées comme le choix proposé (1 = la mienne)."""
+        lignes = [self._c(conflit.nom, "nom") + f" — {conflit.champ}"]
+        versions = (conflit.mienne, conflit.sienne)
+        colonne = max(largeur(v.auteur) for v in versions)
+        for numero, v in enumerate(versions, start=1):
+            if v.texte:
+                texte = self._c(decorer(v.texte), "trait") if conflit.champ == "trait" else v.texte
+            else:
+                texte = self._c("(supprimé)" if conflit.champ == "trait" else "(supprimée)", "info")
+            lignes.append(
+                f"  {numero}. " + self._c(ajuster(v.auteur, colonne), "auteur")
+                + f" ({_date_fr(v.maj)}) : " + texte
+            )
+        return "\n".join(lignes)
 
     def noms(self) -> list:
         noms = {j.nom for j in self.carnet.joueurs}

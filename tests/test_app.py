@@ -57,7 +57,7 @@ def test_croiser_deux_fois_affiche_le_compteur_et_le_trait(tmp_path):
     texte = app.croiser("bob")
     assert "1v1 : hors top 100" in texte
     assert "Croisé 2 fois" in texte
-    assert "Trait (Antho) : 🐣 noob" in texte
+    assert "Trait : 🐣 noob  (Antho, 15/11/2026)" in texte
 
 
 def test_voir_ne_compte_pas_de_rencontre(tmp_path):
@@ -106,9 +106,10 @@ def test_liste_sans_auteurs_mais_show_les_garde(tmp_path):
     liste = sans_couleur(app.liste())
     assert "jamais croisé" not in liste.lower()
     assert "Kevin" not in liste and "Antho" not in liste and "Croisé par" not in liste
-    assert "👑 pro | 🐣 noob" in liste.splitlines()[2]
+    assert "👑 pro" in liste.splitlines()[2] and "noob" not in liste  # version actuelle seulement
     fiche = sans_couleur(app.voir("Bob"))
-    assert "Trait (Kevin) : 🐣 noob" in fiche and "Trait (Antho) : 👑 pro" in fiche
+    assert "Trait : 👑 pro  (Antho, 15/11/2026)" in fiche
+    assert "10/11/2026  Kevin  trait : 🐣 noob" in fiche  # l'ancienne version, dans l'historique
 
 
 def test_show_joueur_importe_donne_l_auteur(tmp_path):
@@ -132,14 +133,6 @@ def test_liste_vu_aligne_a_droite_malgre_les_emojis(tmp_path):
     assert len({largeur(l) for l in lignes[2:]}) == 1  # même rencontre : même largeur totale
 
 
-def test_liste_traits_identiques_une_seule_fois(tmp_path):
-    app = nouvelle_app(tmp_path)
-    app.croiser("Bob")
-    app.noter("Bob", "noob")
-    app.carnet.trouver("Bob").traits["Kevin"] = app.carnet.trouver("Bob").traits["Antho"]
-    assert sans_couleur(app.liste()).count("noob") == 1
-
-
 def test_export_puis_import_chez_le_pote(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
@@ -155,9 +148,9 @@ def test_export_puis_import_chez_le_pote(tmp_path):
     )
     texte = pote.importer(str(fichier))
     assert "1 joueur(s) ajouté(s)" in texte
-    assert "1 trait(s) ajouté(s), 0 trait(s) mis à jour" in texte
-    assert "Traits et notes perso existants inchangés." in texte
-    assert pote.carnet.trouver("Bob").traits["Antho"].texte == "noob"
+    assert "1 version(s) ajoutée(s) à l'historique, 1 trait(s) et 0 note(s) changé(s)" in texte
+    assert "la version la plus récente l'emporte" in texte and "conflit" not in texte
+    assert pote.trait_actuel("Bob") == "noob"  # trait commun : Kevin peut le modifier
 
 
 def test_import_fichier_absent(tmp_path):
@@ -181,9 +174,9 @@ def test_fiche_et_liste_affichent_les_emojis(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     app.noter("Bob", "aggressive, noob")
-    assert "Trait (Antho) : 🔥 aggressive, 🐣 noob" in app.voir("Bob")
+    assert "Trait : 🔥 aggressive, 🐣 noob" in app.voir("Bob")
     assert "🔥 aggressive" in app.liste()
-    assert app.carnet.trouver("Bob").traits["Antho"].texte == "aggressive, noob"  # stocké sans emoji
+    assert app.carnet.trouver("Bob").trait == "aggressive, noob"  # stocké sans emoji
 
 
 def test_analyser_traits():
@@ -303,7 +296,7 @@ def test_renommer_garde_rencontres_et_traits(tmp_path):
     assert "renommé" in app.renommer("pizza", "[IMP] Pizza")
     assert app.carnet.trouver("Pizza") is None
     joueur = app.carnet.trouver("[IMP] Pizza")
-    assert (joueur.nom, joueur.rencontres, joueur.traits["Antho"].texte) == ("[IMP] Pizza", 1, "noob")
+    assert (joueur.nom, joueur.rencontres, joueur.trait) == ("[IMP] Pizza", 1, "noob")
     assert "[IMP] Pizza" in (tmp_path / "carnet.json").read_text(encoding="utf-8")
 
 
@@ -369,10 +362,10 @@ def test_note_enregistre_et_apparait_dans_show(tmp_path):
     app = nouvelle_app(tmp_path)
     assert "Note" not in app.voir("Bob")
     assert "enregistrée" in app.memoriser("bob", "rush archers, mauvais perdant")
-    assert app.mon_memo("Bob") == "rush archers, mauvais perdant"
+    assert app.note_actuelle("Bob") == "rush archers, mauvais perdant"
     assert "Note : rush archers, mauvais perdant" in app.voir("Bob")
     assert "Note : rush archers" in app.croiser("Bob")
-    assert Carnet.charger(tmp_path / "carnet.json").trouver("Bob").memo == "rush archers, mauvais perdant"
+    assert Carnet.charger(tmp_path / "carnet.json").trouver("Bob").note == "rush archers, mauvais perdant"
 
 
 def test_note_sans_compter_de_rencontre_et_effacement(tmp_path):
@@ -380,7 +373,7 @@ def test_note_sans_compter_de_rencontre_et_effacement(tmp_path):
     app.memoriser("Bob", "x")
     assert app.carnet.trouver("Bob").rencontres == 0
     assert "effacée" in app.memoriser("Bob", "")
-    assert app.mon_memo("Bob") == ""
+    assert app.note_actuelle("Bob") == ""
 
 
 def test_note_vide_sur_joueur_inconnu_ne_cree_rien(tmp_path):
@@ -394,7 +387,7 @@ def test_note_donne_le_nom_officiel_et_apparait_dans_list(tmp_path):
     app.memoriser("pizza", "gentil")
     assert app.carnet.trouver("[IMP] Pizza") is None  # nom_canonique ne devine pas le préfixe
     app.memoriser("unloukee", "fort")
-    assert app.carnet.trouver("Unloukee").memo == "fort"
+    assert app.carnet.trouver("Unloukee").note == "fort"
     assert "Unloukee" in app.liste()
 
 
@@ -403,7 +396,7 @@ def test_export_import_avec_les_notes(tmp_path):
     app.croiser("Bob")
     app.memoriser("Bob", "joue le soir")
     message = app.exporter(str(tmp_path / "e.json"))
-    assert "notes perso incluses" in message.lower()
+    assert "notes et historique inclus" in message.lower()
     assert "joue le soir" in (tmp_path / "e.json").read_text(encoding="utf-8")
 
     pote = App(
@@ -412,14 +405,15 @@ def test_export_import_avec_les_notes(tmp_path):
         classement=None,
         maintenant=lambda: "2026-11-15T21:00",
     )
-    pote.memoriser("Bob", "rush")
+    pote.memoriser("Bob", "rush")  # 21:00, après celle d'Antho : conflit, la plus récente gagne
     texte = pote.importer(str(tmp_path / "e.json"))
-    assert "1 note(s) ajoutée(s), 0 note(s) mise(s) à jour" in texte
+    assert "1 conflit(s), 0 choix enregistré(s)" in texte
     fiche = sans_couleur(pote.voir("Bob"))
-    assert "Note : rush" in fiche and "Note (Antho) : joue le soir" in fiche
+    assert "Note : rush  (Kevin, 15/11/2026)" in fiche
+    assert "15/11/2026  Antho  note  : joue le soir" in fiche
     assert "Croisé par Kevin, Antho." in fiche
-    assert "rush | joue le soir" in sans_couleur(pote.liste())
-    assert pote.mon_memo("Bob") == "rush"
+    assert "rush" in sans_couleur(pote.liste()) and "joue le soir" not in sans_couleur(pote.liste())
+    assert pote.note_actuelle("Bob") == "rush"
 
 
 # --- top : classement complet avec recherche -------------------------------------
@@ -490,14 +484,14 @@ def test_noter_refuse_un_trait_hors_liste_sans_rien_enregistrer(tmp_path):
     app.croiser("Bob")
     erreur = app.noter("Bob", "rush archers")
     assert "rush" in erreur and "aggressive" in erreur and "pro" in erreur
-    assert app.mon_trait("Bob") == ""
+    assert app.trait_actuel("Bob") == ""
 
 
 def test_noter_enregistre_les_mots_cles_normalises(tmp_path):
     app = nouvelle_app(tmp_path)
     app.croiser("Bob")
     assert app.noter("Bob", "agressif, Defense") == ""
-    assert app.mon_trait("Bob") == "aggressive, defence"
+    assert app.trait_actuel("Bob") == "aggressive, defence"
 
 
 def test_analyser_commandes_disparues():
@@ -515,7 +509,7 @@ def test_trait_sans_aucun_mot_est_refuse_et_n_efface_pas(tmp_path, texte):
     app.noter("Bob", "noob")
     message = app.noter("Bob", texte)
     assert "Trait refusé : aucun mot-clé." in message and "Traits possibles" in message
-    assert app.mon_trait("Bob") == "noob"
+    assert app.trait_actuel("Bob") == "noob"
 
 
 def test_trait_vide_efface_toujours(tmp_path):
@@ -523,7 +517,7 @@ def test_trait_vide_efface_toujours(tmp_path):
     app.croiser("Bob")
     app.noter("Bob", "noob")
     assert app.noter("Bob", "  ") == ""
-    assert app.mon_trait("Bob") == ""
+    assert app.trait_actuel("Bob") == ""
 
 
 def test_export_vers_son_propre_carnet_est_refuse(tmp_path):
@@ -604,3 +598,108 @@ def test_import_ne_cherche_pas_sur_le_bureau(tmp_path, monkeypatch):
     Carnet(auteur="Kevin").sauver(app.bureau / "kevin.json")
     monkeypatch.chdir(tmp_path)
     assert "introuvable" in app.importer("kevin.json")
+
+
+# --- historique et conflits (ADR 0022) -------------------------------------------
+
+
+def _pote(tmp_path, auteur="Paul", quand="2026-11-16T20:00"):
+    return App(
+        carnet=Carnet(auteur=auteur),
+        chemin_carnet=tmp_path / f"{auteur}_notebook.json",
+        classement=None,
+        maintenant=lambda: quand,
+    )
+
+
+def test_show_et_edit_affichent_l_historique_du_plus_recent_au_plus_ancien(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.croiser("Bob")
+    for heure, trait in (("20:01", "noob"), ("20:02", "pro"), ("20:03", "")):
+        app.maintenant = lambda h=heure: f"2026-11-15T{h}"
+        app.noter("Bob", trait)
+    app.memoriser("Bob", "rush")
+    fiche = sans_couleur(app.voir("Bob"))
+    assert "Trait : pas encore noté" in fiche and "Note : rush" in fiche
+    lignes = fiche.split("Historique (2 version(s) remplacée(s)) :")[1].strip().splitlines()
+    assert [l.split(" : ")[1] for l in lignes] == ["👑 pro", "🐣 noob"]
+    assert "Historique (2" in sans_couleur(app.modifier("Bob"))
+    assert "Historique" not in sans_couleur(app.croiser("Bob"))  # en partie : fiche courte
+
+
+def test_historique_limite_aux_dix_dernieres_versions(tmp_path):
+    app = nouvelle_app(tmp_path)
+    for n in range(15):
+        app.maintenant = lambda n=n: f"2026-11-15T20:{n:02d}"
+        app.memoriser("Bob", f"note {n}")
+    fiche = sans_couleur(app.voir("Bob"))
+    assert "Historique (14 version(s) remplacée(s))" in fiche
+    assert "note 13" in fiche and "note 4" in fiche and "note 3" not in fiche
+
+
+def test_show_affiche_les_rencontres_des_autres(tmp_path):
+    app = nouvelle_app(tmp_path)
+    paul = Carnet(auteur="Paul")
+    paul.croiser("Bob", quand="2026-11-12T20:00")
+    paul.noter("Bob", "pro", maintenant="2026-11-12T20:00")
+    paul.sauver(tmp_path / "paul.json")
+    app.importer(str(tmp_path / "paul.json"))
+    fiche = sans_couleur(app.voir("Bob"))
+    assert "Rencontres des autres : Paul 1 fois (12/11/2026)" in fiche
+    assert "Croisé par Paul." in fiche
+    assert "vu" not in sans_couleur(app.top("1v1"))  # top : mes rencontres seulement
+
+
+def test_import_demande_un_choix_par_conflit(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.memoriser("Bob", "rush")
+    app.noter("Bob", "noob")
+    paul = _pote(tmp_path)
+    paul.memoriser("Bob", "rush archers")
+    paul.noter("Bob", "pro")
+    paul.exporter(str(tmp_path / "paul.json"))
+    vus = []
+
+    def decider(conflits, auteur):
+        assert auteur == "Paul"
+        vus.extend(conflits)
+        return ["mienne" if c.champ == "note" else "fusion" for c in conflits]
+
+    app.maintenant = lambda: "2026-11-17T10:00"
+    texte = app.importer(str(tmp_path / "paul.json"), decider)
+    assert sorted(c.champ for c in vus) == ["note", "trait"]
+    assert "2 conflit(s), 2 choix enregistré(s)" in texte
+    assert app.note_actuelle("Bob") == "rush"
+    assert app.trait_actuel("Bob") == "noob, pro"
+    assert Carnet.charger(app.chemin_carnet).trouver("Bob").note == "rush"
+
+
+def test_import_sans_conflit_ne_demande_rien(tmp_path):
+    app = nouvelle_app(tmp_path)
+    paul = _pote(tmp_path)
+    paul.memoriser("Bob", "rush")
+    paul.exporter(str(tmp_path / "paul.json"))
+
+    def decider(conflits, auteur):
+        raise AssertionError("pas de question sans conflit")
+
+    app.importer(str(tmp_path / "paul.json"), decider)
+    assert app.note_actuelle("Bob") == "rush"
+
+
+def test_resume_et_description_d_un_conflit(tmp_path):
+    app = nouvelle_app(tmp_path)
+    app.memoriser("Bob", "rush")
+    app.noter("Bob", "noob")
+    paul = Carnet(auteur="Paul")
+    paul.memoriser("Bob", "autre", maintenant="2026-11-20T20:00")
+    paul.memoriser("Bob", "", maintenant="2026-11-21T20:00")  # Paul l'a supprimée
+    paul.noter("Bob", "pro", maintenant="2026-11-21T20:00")
+    conflits = app.carnet.conflits(paul)
+    assert app.resume_conflits(conflits, "Paul") == "2 conflit(s) avec Paul (1 note(s), 1 trait(s)), dont 1 suppression(s)."
+    note = next(c for c in conflits if c.champ == "note")
+    assert sans_couleur(app.decrire_conflit(note)).splitlines() == [
+        "Bob — note",
+        "  1. Antho (15/11/2026) : rush",
+        "  2. Paul  (21/11/2026) : (supprimée)",
+    ]

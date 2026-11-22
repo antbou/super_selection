@@ -18,7 +18,7 @@ def isole(tmp_path, monkeypatch):
 
 
 def test_carnet_illisible_message_sans_traceback(isole, capsys):
-    carnet = isole / "carnet.json"
+    carnet = isole / "notebook.json"
     carnet.write_text("{", encoding="utf-8")
     with pytest.raises(SystemExit) as sortie:
         cli.main(["list"])
@@ -30,7 +30,7 @@ def test_carnet_illisible_message_sans_traceback(isole, capsys):
 
 
 def test_carnet_invalide_message_sans_traceback(isole, capsys):
-    (isole / "carnet.json").write_text("[]", encoding="utf-8")
+    (isole / "notebook.json").write_text("[]", encoding="utf-8")
     with pytest.raises(SystemExit) as sortie:
         cli.main(["list"])
     assert sortie.value.code == 1
@@ -42,7 +42,7 @@ def test_premier_lancement_sans_terminal(isole, capsys):
         cli.main(["list"])
     assert sortie.value.code == 1
     assert "Premier lancement : exécuter « superselection » dans un terminal" in capsys.readouterr().out
-    assert not (isole / "carnet.json").exists()
+    assert not (isole / "notebook.json").exists()
 
 
 def test_premier_lancement_ctrl_c_sur_le_pseudo(isole, monkeypatch):
@@ -53,11 +53,11 @@ def test_premier_lancement_ctrl_c_sur_le_pseudo(isole, monkeypatch):
 
     monkeypatch.setattr("builtins.input", interrompu)
     cli.main([])  # sort proprement
-    assert not (isole / "carnet.json").exists()
+    assert not (isole / "notebook.json").exists()
 
 
 def test_exception_inattendue_ecrit_erreur_log(isole, monkeypatch, capsys):
-    (isole / "carnet.json").write_text('{"auteur": "Antho", "joueurs": []}', encoding="utf-8")
+    (isole / "notebook.json").write_text('{"version": 2, "owner": "Antho", "players": []}', encoding="utf-8")
 
     def casse(*args, **kwargs):
         raise RuntimeError("boum")
@@ -81,8 +81,7 @@ from test_app import nouvelle_app
 
 def _trait(app, nom):
     joueur = app.carnet.trouver(nom)
-    note = joueur.traits.get("Antho") if joueur else None
-    return note.texte if note else None
+    return (joueur.trait or None) if joueur else None
 
 
 @pytest.mark.parametrize("erreur", [KeyboardInterrupt, EOFError])
@@ -134,7 +133,7 @@ def test_reponse_vide_garde_le_trait(tmp_path):
 
 
 def test_boucle_interactive_continue_si_l_enregistrement_echoue(isole, monkeypatch, capsys):
-    (isole / "carnet.json").write_text('{"auteur": "Antho", "joueurs": []}', encoding="utf-8")
+    (isole / "notebook.json").write_text('{"version": 2, "owner": "Antho", "players": []}', encoding="utf-8")
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     lignes = iter(["Bob", "quit"])
 
@@ -267,7 +266,7 @@ def test_croiser_propose_aussi_une_note(tmp_path):
     demander = _repondre(trait="noob", note="m'a insulté")
     cli.executer(app, "Bob", demander)
     assert _trait(app, "Bob") == "noob"
-    assert app.mon_memo("Bob") == "m'a insulté"
+    assert app.note_actuelle("Bob") == "m'a insulté"
     assert len(demander.questions) == 2
 
 
@@ -275,9 +274,9 @@ def test_croiser_note_vide_ou_tiret(tmp_path):
     app = nouvelle_app(tmp_path)
     cli.executer(app, "Bob", _repondre(note="x"))
     cli.executer(app, "Bob", _repondre(note=""))
-    assert app.mon_memo("Bob") == "x"
+    assert app.note_actuelle("Bob") == "x"
     cli.executer(app, "Bob", _repondre(note="-"))
-    assert app.mon_memo("Bob") == ""
+    assert app.note_actuelle("Bob") == ""
 
 
 def test_croiser_ctrl_c_sur_la_note_annule_aussi_le_trait(tmp_path):
@@ -292,7 +291,7 @@ def test_croiser_ctrl_c_sur_la_note_annule_aussi_le_trait(tmp_path):
     cli.executer(app, "Bob", demander)
     assert _trait(app, "Bob") is None
     assert app.carnet.trouver("Bob").rencontres == 0
-    assert app.mon_memo("Bob") == "ancienne"
+    assert app.note_actuelle("Bob") == "ancienne"
     assert "noob" not in app.chemin_carnet.read_text(encoding="utf-8")
 
 
@@ -355,7 +354,7 @@ def test_edit_champs_prerempli_entree_garde_tout(tmp_path):
     assert vus == ["Bob", "aggressive", "joue le soir"]
     bob = app.carnet.trouver("Bob")
     assert bob.rencontres == 1 and bob.derniere == "2026-11-15T20:00"
-    assert _trait(app, "Bob") == "aggressive" and bob.memo == "joue le soir"
+    assert _trait(app, "Bob") == "aggressive" and bob.note == "joue le soir"
 
 
 def test_edit_corrige_sur_place_et_vide_efface(tmp_path):
@@ -366,7 +365,7 @@ def test_edit_corrige_sur_place_et_vide_efface(tmp_path):
     reponses = iter(["Bob", "aggressive, noob", ""])  # nom gardé, trait corrigé, note vidée
     cli.executer(app, "edit Bob", lambda q, d, genre="texte": next(reponses))
     assert _trait(app, "Bob") == "aggressive, noob"
-    assert app.carnet.trouver("Bob").memo == ""
+    assert app.carnet.trouver("Bob").note == ""
 
 
 def test_edit_joueur_inconnu_ne_pose_aucune_question(tmp_path):
@@ -468,7 +467,7 @@ def test_edit_tiret_efface_la_note(tmp_path):
     app.memoriser("Bob", "joue le soir")
     reponses = iter(["Bob", "", "-"])
     cli.executer(app, "edit Bob", lambda q, d, genre="texte": next(reponses))
-    assert app.mon_memo("Bob") == ""
+    assert app.note_actuelle("Bob") == ""
 
 
 def test_rename_renvoie_vers_edit_sans_creer_de_joueur(tmp_path, capsys):
@@ -527,3 +526,73 @@ def test_update_option_inconnue(tmp_path, monkeypatch, capsys):
     app = nouvelle_app(tmp_path)
     assert cli.executer(app, "update --vite", lambda q, d, genre="texte": "") is True
     assert "update --force" in capsys.readouterr().out
+
+
+# --- migration et import interactif ------------------------------------------------
+
+
+ANCIEN = '{"auteur": "Antho", "joueurs": [{"nom": "Bob", "rencontres": 2, "styles": {"Antho": {"texte": "noob", "maj": "2026-11-01"}}}]}'
+
+
+def test_ancien_carnet_converti_au_lancement(isole, capsys):
+    (isole / "carnet.json").write_text(ANCIEN, encoding="utf-8")
+    cli.main(["list"])
+    sortie = capsys.readouterr().out
+    assert "Carnet converti au nouveau format" in sortie and "carnet.v1.bak.json" in sortie
+    assert "Bob" in sortie and "noob" in sortie
+    assert (isole / "notebook.json").exists() and not (isole / "carnet.json").exists()
+    assert (isole / "carnet.v1.bak.json").read_text(encoding="utf-8") == ANCIEN
+
+
+def test_ancien_carnet_illisible_rien_n_est_touche(isole, capsys):
+    (isole / "carnet.json").write_text("{", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        cli.main(["list"])
+    assert "carnet.json" in capsys.readouterr().out
+    assert (isole / "carnet.json").read_text(encoding="utf-8") == "{"
+    assert not (isole / "notebook.json").exists()
+
+
+def _conflit_avec_paul(tmp_path):
+    from superselection.carnet import Carnet
+
+    app = nouvelle_app(tmp_path)
+    app.memoriser("Bob", "rush")
+    app.noter("Bob", "noob")
+    paul = Carnet(auteur="Paul")
+    paul.memoriser("Bob", "rush archers", maintenant="2026-11-21T20:00")
+    paul.noter("Bob", "pro", maintenant="2026-11-21T20:00")
+    paul.sauver(tmp_path / "paul.json")
+    return app
+
+
+@pytest.mark.parametrize(
+    "reponses, note, trait",
+    [
+        ([""], "rush archers", "pro"),  # Entrée : la plus récente
+        (["u", "f", "1"], "rush", "noob, pro"),  # trait d'abord, puis note
+        (["u", "", "2"], "rush archers", "pro"),
+        (["x", "u", "3", "2", "1"], "rush", "pro"),  # réponses invalides redemandées
+    ],
+)
+def test_import_avec_conflits_pose_les_questions(tmp_path, capsys, reponses, note, trait):
+    app = _conflit_avec_paul(tmp_path)
+    suite = iter(reponses)
+    cli.executer(app, f"import {tmp_path / 'paul.json'}", lambda q, d, genre="texte": next(suite))
+    sortie = capsys.readouterr().out
+    assert "2 conflit(s) avec Paul" in sortie
+    assert (app.note_actuelle("Bob"), app.trait_actuel("Bob")) == (note, trait)
+    assert next(suite, None) is None  # toutes les réponses ont servi
+
+
+def test_import_ctrl_c_pendant_les_questions_annule_tout(tmp_path, capsys):
+    app = _conflit_avec_paul(tmp_path)
+    avant = app.chemin_carnet.read_text(encoding="utf-8")
+
+    def demander(question, defaut, genre="texte"):
+        raise KeyboardInterrupt
+
+    cli.executer(app, f"import {tmp_path / 'paul.json'}", demander)
+    assert "Annulé" in capsys.readouterr().out
+    assert app.note_actuelle("Bob") == "rush"
+    assert app.chemin_carnet.read_text(encoding="utf-8") == avant
